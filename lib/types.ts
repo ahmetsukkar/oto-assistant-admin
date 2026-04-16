@@ -1,7 +1,9 @@
 export type AppointmentStatus =
   | "Pending"
   | "Confirmed"
-  | "Cancelled";
+  | "Cancelled"
+  | "Done"
+  | "NoShow";
 
 export interface Appointment {
   id: string;
@@ -52,10 +54,37 @@ export interface AppNotification {
   body: string;
   url: string;
   isRead: boolean;
-  createdAt: string; // ISO string
+  createdAt: string;
 }
 
 export interface NotificationsResponse {
   notifications: AppNotification[];
   unreadCount: number;
+}
+
+// ─── Workshop Settings ────────────────────────────────────────────────────────
+
+export interface WorkshopSettings {
+  id: number;
+  workStartTime: string; // "09:00:00"
+  workEndTime: string;   // "18:00:00"
+  slotDurationMinutes: number;
+  sundayOpen: boolean;
+  mondayOpen: boolean;
+  tuesdayOpen: boolean;
+  wednesdayOpen: boolean;
+  thursdayOpen: boolean;
+  fridayOpen: boolean;
+  saturdayOpen: boolean;
+}
+
+export interface SlotStatus {
+  slotTime: string;   // "09:00"
+  isEnabled: boolean;
+}
+
+export interface UpdateSlotPayload {
+  dayOfWeek: number;  // 0=Sunday … 6=Saturday
+  slotTime: string;
+  isEnabled: boolean;
 }

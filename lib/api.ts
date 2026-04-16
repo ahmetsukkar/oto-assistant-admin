@@ -6,6 +6,9 @@ import type {
   NotificationsResponse,
   Service,
   ServicePayload,
+  SlotStatus,
+  UpdateSlotPayload,
+  WorkshopSettings,
 } from "./types";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -34,7 +37,6 @@ async function apiFetch<T>(
     throw new Error(errorText || `HTTP ${res.status}`);
   }
 
-  // 204 No Content
   if (res.status === 204) return undefined as T;
 
   return res.json() as Promise<T>;
@@ -58,13 +60,13 @@ export async function getAppointments(params?: {
   if (params?.status) query.set("status", params.status);
   const qs = query.toString();
   const res = await apiFetch<{ appointments: Appointment[] }>(
-    `/api/admin/appointments${qs ? `?${qs}` : ""}`
+    `/api/admin/appointments${qs ? `?${qs}` : ""}`,
   );
   return res.appointments;
 }
 
 export function createAppointment(
-  payload: BookAppointmentPayload
+  payload: BookAppointmentPayload,
 ): Promise<Appointment> {
   return apiFetch<Appointment>("/api/admin/appointments", {
     method: "POST",
@@ -74,11 +76,17 @@ export function createAppointment(
 
 export function updateAppointmentStatus(
   id: string,
-  status: AppointmentStatus
+  status: AppointmentStatus,
 ): Promise<void> {
   return apiFetch<void>(`/api/admin/appointments/${id}/status`, {
     method: "PATCH",
-    body: JSON.stringify({ status }), // backend expects { "status": "Confirmed" }
+    body: JSON.stringify({ status }),
+  });
+}
+
+export function deleteAppointment(id: string): Promise<void> {
+  return apiFetch<void>(`/api/admin/appointments/${id}`, {
+    method: "DELETE",
   });
 }
 
@@ -89,7 +97,7 @@ export async function getCustomers(search?: string): Promise<Customer[]> {
   if (search) query.set("search", search);
   const qs = query.toString();
   const res = await apiFetch<{ customers: Customer[] }>(
-    `/api/admin/customers${qs ? `?${qs}` : ""}`
+    `/api/admin/customers${qs ? `?${qs}` : ""}`,
   );
   return res.customers;
 }
@@ -110,7 +118,7 @@ export function createService(payload: ServicePayload): Promise<Service> {
 
 export function updateService(
   id: string,
-  payload: ServicePayload
+  payload: ServicePayload,
 ): Promise<Service> {
   return apiFetch<Service>(`/api/admin/services/${id}`, {
     method: "PUT",
@@ -121,6 +129,8 @@ export function updateService(
 export function deleteService(id: string): Promise<void> {
   return apiFetch<void>(`/api/admin/services/${id}`, { method: "DELETE" });
 }
+
+// ─── Notifications ────────────────────────────────────────────────────────────
 
 export function getNotifications(): Promise<NotificationsResponse> {
   return apiFetch<NotificationsResponse>("/api/admin/notifications");
@@ -136,4 +146,42 @@ export function markAllNotificationsRead(): Promise<void> {
   return apiFetch<void>("/api/admin/notifications/read-all", {
     method: "PATCH",
   });
+}
+
+// ─── Workshop Settings ────────────────────────────────────────────────────────
+
+export function getWorkshopSettings(): Promise<WorkshopSettings> {
+  return apiFetch<WorkshopSettings>("/api/admin/settings");
+}
+
+export function updateWorkshopSettings(
+  payload: Omit<WorkshopSettings, "id">,
+): Promise<WorkshopSettings> {
+  return apiFetch<WorkshopSettings>("/api/admin/settings", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getSlotStatuses(dayOfWeek: number): Promise<SlotStatus[]> {
+  return apiFetch<SlotStatus[]>(`/api/admin/settings/slots/${dayOfWeek}`);
+}
+
+export function updateSlot(payload: UpdateSlotPayload): Promise<void> {
+  return apiFetch<void>("/api/admin/settings/slots", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── Availability (used by booking modal) ────────────────────────────────────
+
+export async function getAvailableSlots(date: string): Promise<string[]> {
+  // date: "yyyy-MM-dd"
+  // Reuses CheckAvailability via a dedicated admin endpoint or workshop settings
+  // We call the same slots endpoint filtered for a specific calendar date
+  const res = await apiFetch<{ available: boolean; slots?: string[] }>(
+    `/api/admin/appointments/availability?date=${date}`,
+  );
+  return res.slots ?? [];
 }

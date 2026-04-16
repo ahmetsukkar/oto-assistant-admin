@@ -1,73 +1,53 @@
-// components/BottomNav.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  CalendarCheck,
+  CalendarDays,
   Users,
   Wrench,
+  Settings,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
-const navItems = [
-  {
-    href: "/dashboard",
-    label: "Panel",
-    icon: LayoutDashboard,
-  },
-  {
-    href: "/appointments",
-    label: "Randevular",
-    icon: CalendarCheck,
-  },
-  {
-    href: "/customers",
-    label: "Müşteriler",
-    icon: Users,
-  },
-  {
-    href: "/services",
-    label: "Hizmetler",
-    icon: Wrench,
-  },
+const NAV_ITEMS = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "Ana Sayfa" },
+  { href: "/appointments", icon: CalendarDays, label: "Randevular" },
+  { href: "/customers", icon: Users, label: "Müşteriler" },
+  { href: "/services", icon: Wrench, label: "Hizmetler" },
+  { href: "/settings", icon: Settings, label: "Ayarlar" },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-200 safe-area-inset-bottom">
-      <ul className="flex items-stretch h-16" role="list">
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 safe-area-pb">
+      <div className="flex items-stretch">
+        {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
+          const active = pathname.startsWith(href);
           return (
-            <li key={item.href} className="flex-1">
-              <Link
-                href={item.href}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1 h-full w-full text-xs font-medium transition-colors",
-                  isActive
-                    ? "text-slate-900"
-                    : "text-slate-400 hover:text-slate-600 active:text-slate-900"
-                )}
-                aria-current={isActive ? "page" : undefined}
+            <Link
+              key={href}
+              href={href}
+              className={`flex flex-col items-center justify-center flex-1 py-2.5 gap-1 transition-colors ${
+                active
+                  ? "text-slate-900"
+                  : "text-slate-400 hover:text-slate-600"
+              }`}
+            >
+              <Icon size={20} strokeWidth={active ? 2 : 1.5} />
+              <span
+                className={`text-[10px] font-medium ${
+                  active ? "text-slate-900" : "text-slate-400"
+                }`}
               >
-                <item.icon
-                  size={22}
-                  strokeWidth={isActive ? 2 : 1.75}
-                  className={cn(
-                    "transition-colors",
-                    isActive ? "text-slate-900" : "text-slate-400"
-                  )}
-                />
-                <span>{item.label}</span>
-              </Link>
-            </li>
+                {label}
+              </span>
+            </Link>
           );
         })}
-      </ul>
+      </div>
     </nav>
   );
 }

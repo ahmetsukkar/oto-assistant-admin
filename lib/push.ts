@@ -1,12 +1,9 @@
 // lib/push.ts
-
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
 function urlBase64ToUint8Array(base64String: string): ArrayBuffer {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding)
-    .replace(/-/g, "+")
-    .replace(/_/g, "/");
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
   const outputArray = new Uint8Array(rawData.length);
   for (let i = 0; i < rawData.length; ++i) {
@@ -32,26 +29,60 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
       return null;
     }
 
-    // Register push event handler service worker
-    // await navigator.serviceWorker.register("/sw-push.js", { scope: "/" });
-    // console.log("sw-push.js registered");
+    // Get the existing registration first
+    let registration = await navigator.serviceWorker.getRegistration("/");
 
-    // Wait for any active service worker — with timeout
-    const registration = await Promise.race([
-      navigator.serviceWorker.ready,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Service worker ready timeout after 5s")), 5000)
-      ),
-    ]) as ServiceWorkerRegistration;
+    // If no registration found, wait for it with a longer timeout
+    if (!registration) {
+      registration = await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Service worker not found after 10s")),
+            10_000,
+          ),
+        ),
+      ]) as ServiceWorkerRegistration;
+    }
 
-    console.log("SW ready:", registration);
+    // If SW is installed but not yet active, wait for it to activate
+    if (!registration.active) {
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error("SW activation timeout")),
+          10_000,
+        );
+        const sw = registration!.installing ?? registration!.waiting;
+        if (!sw) {
+          clearTimeout(timeout);
+          resolve();
+          return;
+        }
+        sw.addEventListener("statechange", (e) => {
+          if ((e.target as ServiceWorker).state === "activated") {
+            clearTimeout(timeout);
+            resolve();
+          }
+        });
+      });
+    }
 
+    console.log("SW ready:", registration.active?.scriptURL);
+
+    // Reuse existing subscription if present
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) {
+      console.log("✅ Reusing existing subscription:", existing.endpoint);
+      return existing;
+    }
+
+    // Create new subscription
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
 
-    console.log("✅ Subscription created:", subscription.endpoint);
+    console.log("✅ New subscription created:", subscription.endpoint);
     return subscription;
 
   } catch (err) {
@@ -61,7 +92,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
 }
 
 export async function sendSubscriptionToBackend(
-  subscription: PushSubscription
+  subscription: PushSubscription,
 ): Promise<void> {
   const adminKey =
     typeof window !== "undefined"
@@ -87,7 +118,7 @@ export async function sendSubscriptionToBackend(
           auth: json.keys?.auth ?? "",
         },
       }),
-    }
+    },
   );
 
   if (!res.ok) {
