@@ -388,17 +388,21 @@ export default function DashboardPage() {
 
   async function handleEnableNotifications() {
     const sub = await subscribeToPush();
+
     if (!sub) {
-      // User denied or something failed — sync state with reality
       setNotifPermission(
         "Notification" in window ? Notification.permission : "unsupported",
       );
       return;
     }
+
     try {
       await sendSubscriptionToBackend(sub);
-    } finally {
       setNotifPermission("granted");
+    } catch (err) {
+      console.error("Saving push subscription failed:", err);
+      setNotifPermission("default");
+      alert("Bildirim izni verildi ama abonelik sunucuya kaydedilemedi.");
     }
   }
 
