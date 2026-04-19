@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,10 @@ export default function LoginPage() {
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [year, setYear] = useState("");
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setYear(String(new Date().getFullYear())); }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -123,7 +127,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="text-center text-xs text-slate-400">
-          OtoAssistant © {new Date().getFullYear()}
+          OtoAssistant © {year}
         </p>
       </div>
     </div>
