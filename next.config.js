@@ -3,6 +3,7 @@ const withPWA = require("@ducanh2912/next-pwa").default({
   disable: false,
   register: true,
   skipWaiting: true,
+  customWorkerSrc: "sw-custom.js",
   workboxOptions: {
     disableDevLogs: true,
   },
