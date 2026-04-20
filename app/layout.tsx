@@ -21,7 +21,6 @@ export const metadata: Metadata = {
   },
 };
 
-
 export const viewport: Viewport = {
   themeColor: "#0f172a",
   width: "device-width",
@@ -39,6 +38,18 @@ export default function RootLayout({
     <html lang="tr" className={geist.variable}>
       <body className="font-sans bg-slate-50 text-slate-900 antialiased">
         {children}
+
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                  window.addEventListener('load', function() { navigator.serviceWorker.register('/sw.js')
+                  .then(function(reg) { console.log('SW registered:', reg.scope); })
+                  .catch(function(err) { console.error('SW failed:', err); });
+                });
+              }`,
+          }}
+        />
       </body>
     </html>
   );
