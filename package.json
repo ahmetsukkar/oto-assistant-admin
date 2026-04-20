@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack",
-    "postbuild": "node scripts/inject-push.js",
+    "build": "next build --webpack && node scripts/inject-push.js",
     "start": "next start",
     "lint": "next lint"
   },
