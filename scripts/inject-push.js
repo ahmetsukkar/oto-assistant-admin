@@ -62,7 +62,7 @@ if (!fs.existsSync(swPath)) {
   process.exit(1);
 }
 
-const current = fs.readFileSync(swPath, "utf8");
+let current = fs.readFileSync(swPath, "utf8");
 
 if (current.includes('addEventListener("push"')) {
   console.log("✅ Push handler already present in sw.js — skipping.");

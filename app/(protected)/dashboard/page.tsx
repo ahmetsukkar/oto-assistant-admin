@@ -323,23 +323,25 @@ export default function DashboardPage() {
     const perm = Notification.permission;
     setNotifPermission(perm);
 
-    // If already granted, verify a push subscription actually exists.
-    // If it does → stay "granted" so <NotificationBell /> renders immediately.
-    // If it doesn't (e.g. subscription expired) → keep "granted" so the bell
-    // still renders; the backend will get a 410 and clean it up automatically.
     if (perm === "granted" && "serviceWorker" in navigator) {
       navigator.serviceWorker.ready
         .then((reg) => reg.pushManager.getSubscription())
-        .then((sub) => {
+        .then(async (sub) => {
           if (!sub) {
-            // Permission granted but no active subscription —
-            // drop back to "default" so the pinging bell reappears
-            // and the user can re-subscribe.
-            setNotifPermission("default");
+            // No active subscription — re-subscribe automatically
+            console.log("🔔 No subscription found, re-subscribing...");
+            const newSub = await subscribeToPush();
+            if (newSub) {
+              await sendSubscriptionToBackend(newSub);
+              console.log("✅ Re-subscribed successfully");
+              setNotifPermission("granted");
+            } else {
+              setNotifPermission("default");
+            }
           }
         })
         .catch(() => {
-          // SW not ready — leave state as-is, next render cycle will retry.
+          setNotifPermission("default");
         });
     }
   }, []);
