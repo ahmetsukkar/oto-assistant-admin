@@ -324,25 +324,26 @@ export default function DashboardPage() {
     setNotifPermission(perm);
 
     if (perm === "granted" && "serviceWorker" in navigator) {
-      navigator.serviceWorker.ready
-        .then((reg) => reg.pushManager.getSubscription())
-        .then(async (sub) => {
+      // Small delay to ensure sessionStorage is ready
+      setTimeout(async () => {
+        const adminKey = sessionStorage.getItem("admin_key");
+        if (!adminKey) return; // Not logged in yet
+
+        try {
+          const reg = await navigator.serviceWorker.ready;
+          const sub = await reg.pushManager.getSubscription();
           if (!sub) {
-            // No active subscription — re-subscribe automatically
             console.log("🔔 No subscription found, re-subscribing...");
             const newSub = await subscribeToPush();
             if (newSub) {
               await sendSubscriptionToBackend(newSub);
               console.log("✅ Re-subscribed successfully");
-              setNotifPermission("granted");
-            } else {
-              setNotifPermission("default");
             }
           }
-        })
-        .catch(() => {
-          setNotifPermission("default");
-        });
+        } catch (err) {
+          console.error("Re-subscribe failed:", err);
+        }
+      }, 1000); // 1 second delay
     }
   }, []);
 
