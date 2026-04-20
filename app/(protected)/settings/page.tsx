@@ -229,14 +229,14 @@ export default function SettingsPage() {
 
                 <div className="space-y-1.5">
                   <Label className="text-xs">Slot Süresi (dakika)</Label>
-                  <div className="flex gap-2">
-                    {[30, 60, 90, 120].map((m) => (
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {[15, 30, 60, 90, 120].map((m) => (
                       <button
                         key={m}
                         onClick={() =>
                           setSettings({ ...settings, slotDurationMinutes: m })
                         }
-                        className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                        className={`py-2 rounded-lg text-xs font-medium border transition-colors ${
                           settings.slotDurationMinutes === m
                             ? "bg-slate-900 text-white border-slate-900"
                             : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
@@ -294,14 +294,12 @@ export default function SettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4 space-y-3">
-
                 {/* Case 1: No days open at all → first setup notice */}
                 {!anyDayOpen(settings) && (
                   <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 leading-relaxed">
                     ⚠️ Henüz hiçbir gün açık değil. Yukarıdan çalışma günlerini
-                    seçin, ardından{" "}
-                    <strong>Kaydet</strong>&apos;e basın — slotlar otomatik
-                    oluşturulacak.
+                    seçin, ardından <strong>Kaydet</strong>&apos;e basın —
+                    slotlar otomatik oluşturulacak.
                   </div>
                 )}
 
@@ -309,13 +307,13 @@ export default function SettingsPage() {
                 {anyDayOpen(settings) && (
                   <>
                     {/* Day tab selector — only open days shown */}
-                    <div className="flex gap-1.5 overflow-x-auto pb-1">
+                    <div className="flex flex-wrap gap-1.5">
                       {DAYS.filter((d) => settings[d.key] as boolean).map(
                         (day) => (
                           <button
                             key={day.dow}
                             onClick={() => setSelectedDow(day.dow)}
-                            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                               selectedDow === day.dow
                                 ? "bg-slate-900 text-white"
                                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
@@ -344,8 +342,8 @@ export default function SettingsPage() {
                           </div>
                         ) : slots.length === 0 ? (
                           <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-3">
-                            Henüz slot yok. <strong>Kaydet</strong>&apos;e
-                            basın — slotlar otomatik oluşturulacak.
+                            Henüz slot yok. <strong>Kaydet</strong>&apos;e basın
+                            — slotlar otomatik oluşturulacak.
                           </div>
                         ) : (
                           <>

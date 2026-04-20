@@ -88,3 +88,26 @@ export interface UpdateSlotPayload {
   slotTime: string;
   isEnabled: boolean;
 }
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+export interface DashboardStats {
+  totalCustomers: number;
+  pending: number;
+  confirmed: number;
+  cancelled: number;
+  done: number;
+  noShow: number;
+  total: number;
+}
+
+// ─── Paginated Appointments ───────────────────────────────────────────────────
+
+export interface PaginatedAppointments {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  hasMore: boolean;
+  appointments: Appointment[];
+}

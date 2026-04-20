@@ -3,7 +3,9 @@ import type {
   AppointmentStatus,
   BookAppointmentPayload,
   Customer,
+  DashboardStats,
   NotificationsResponse,
+  PaginatedAppointments,
   Service,
   ServicePayload,
   SlotStatus,
@@ -184,4 +186,29 @@ export async function getAvailableSlots(date: string): Promise<string[]> {
     `/api/admin/appointments/availability?date=${date}`,
   );
   return res.slots ?? [];
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+export function getDashboardStats(): Promise<DashboardStats> {
+  return apiFetch<DashboardStats>("/api/admin/stats");
+}
+
+// ─── Paginated Appointments ───────────────────────────────────────────────────
+
+export async function getAppointmentsPaginated(params?: {
+  date?: string;
+  status?: AppointmentStatus;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedAppointments> {
+  const query = new URLSearchParams();
+  if (params?.date) query.set("date", params.date);
+  if (params?.status) query.set("status", params.status);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  return apiFetch<PaginatedAppointments>(
+    `/api/admin/appointments${qs ? `?${qs}` : ""}`
+  );
 }

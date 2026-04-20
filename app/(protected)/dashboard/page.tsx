@@ -6,48 +6,36 @@ import {
   getTodayAppointments,
   updateAppointmentStatus,
   deleteAppointment,
-  getServices,
-  getAvailableSlots,
-  createAppointment,
 } from "@/lib/api";
 import { subscribeToPush, sendSubscriptionToBackend } from "@/lib/push";
-import type { Appointment, AppointmentStatus, Service } from "@/lib/types";
+import type { Appointment, AppointmentStatus } from "@/lib/types";
 import BottomNav from "@/components/BottomNav";
 import NotificationBell from "@/components/NotificationBell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   CalendarClock,
-  ChevronDown,
   Loader2,
   RefreshCw,
   LogOut,
   BellOff,
-  Plus,
   Trash2,
+  Users,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  CalendarCheck2,
+  MinusCircle,
 } from "lucide-react";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
   Pending: "Bekliyor",
@@ -73,229 +61,156 @@ const ALL_STATUSES: AppointmentStatus[] = [
   "NoShow",
 ];
 
-// ─── Booking Modal ────────────────────────────────────────────────────────────
+// ─── Appointment Action Sheet ─────────────────────────────────────────────────
 
-function BookingModal({
-  open,
+function AppointmentSheet({
+  appointment,
+  updating,
+  deleting,
+  onStatusChange,
+  onDelete,
   onClose,
-  onBooked,
 }: {
-  open: boolean;
+  appointment: Appointment | null;
+  updating: boolean;
+  deleting: boolean;
+  onStatusChange: (id: string, status: AppointmentStatus) => void;
+  onDelete: (id: string) => void;
   onClose: () => void;
-  onBooked: () => void;
 }) {
-  const [step, setStep] = useState<"form" | "slots" | "confirm" | "loading">(
-    "form",
-  );
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
-  const [services, setServices] = useState<Service[]>([]);
-  const [serviceId, setServiceId] = useState("");
-  const [date, setDate] = useState("");
-  const [slots, setSlots] = useState<string[]>([]);
-  const [selectedSlot, setSelectedSlot] = useState("");
-  const [loadingSlots, setLoadingSlots] = useState(false);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    setStep("form");
-    setPhone("");
-    setName("");
-    setServiceId("");
-    setDate("");
-    setSlots([]);
-    setSelectedSlot("");
-    setError("");
-    getServices()
-      .then(setServices)
-      .catch(() => {});
-  }, [open]);
-
-  const todayStr = new Date().toISOString().split("T")[0];
-
-  async function handleCheckSlots() {
-    if (!phone || !serviceId || !date) {
-      setError("Telefon, hizmet ve tarih zorunludur.");
-      return;
-    }
-    setError("");
-    setLoadingSlots(true);
-    try {
-      const available = await getAvailableSlots(date);
-      if (available.length === 0) {
-        setError("Bu tarihte müsait saat bulunmamaktadır.");
-        setLoadingSlots(false);
-        return;
-      }
-      setSlots(available);
-      setSelectedSlot(available[0]);
-      setStep("slots");
-    } catch {
-      setError("Müsait saatler yüklenemedi.");
-    } finally {
-      setLoadingSlots(false);
-    }
-  }
-
-  async function handleBook() {
-    if (!selectedSlot) return;
-    setStep("loading");
-    setError("");
-    try {
-      const dateTime = `${date}T${selectedSlot}:00`;
-      await createAppointment({
-        customerPhone: phone,
-        customerName: name || undefined,
-        serviceId,
-        appointmentDate: dateTime,
-      });
-      onBooked();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Randevu oluşturulamadı.");
-      setStep("slots");
-    }
-  }
-
-  const selectedService = services.find((s) => s.id === serviceId);
+  if (!appointment) return null;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-sm mx-auto">
-        <DialogHeader>
-          <DialogTitle>Yeni Randevu</DialogTitle>
-        </DialogHeader>
-
-        {step === "form" && (
-          <div className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="phone">Telefon *</Label>
-              <Input
-                id="phone"
-                placeholder="905XXXXXXXXX"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="name">İsim (opsiyonel)</Label>
-              <Input
-                id="name"
-                placeholder="Müşteri adı"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Hizmet *</Label>
-              <Select value={serviceId} onValueChange={setServiceId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Hizmet seçin" />
-                </SelectTrigger>
-                <SelectContent>
-                  {services.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.serviceName} — {s.price} ₺
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="date">Tarih *</Label>
-              <Input
-                id="date"
-                type="date"
-                min={todayStr}
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
-            {error && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-                {error}
-              </p>
-            )}
-            <Button
-              className="w-full"
-              onClick={handleCheckSlots}
-              disabled={loadingSlots}
+    <Sheet open={!!appointment} onOpenChange={(v) => !v && onClose()}>
+      <SheetContent side="bottom" className="rounded-t-2xl px-0 pb-8">
+        <SheetHeader className="px-5 pb-3 border-b border-slate-100">
+          <SheetTitle className="text-base text-left">
+            {appointment.customerName}
+          </SheetTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge
+              variant="outline"
+              className={`text-xs border ${STATUS_BADGE_CLASS[appointment.status]}`}
             >
-              {loadingSlots ? (
-                <Loader2 size={16} className="animate-spin mr-2" />
-              ) : null}
-              Müsait Saatleri Göster
-            </Button>
+              {STATUS_LABELS[appointment.status]}
+            </Badge>
+            <span className="text-xs text-slate-400">
+              {appointment.appointmentNumber} · {appointment.appointmentDate}
+            </span>
           </div>
-        )}
+        </SheetHeader>
 
-        {step === "slots" && (
-          <div className="space-y-4 pt-2">
-            <p className="text-sm text-slate-600">
-              <span className="font-medium">{date}</span> tarihinde müsait
-              saatler:
+        <div className="px-5 pt-4 space-y-4">
+          {/* Service info */}
+          <div className="bg-slate-50 rounded-xl p-3 space-y-1">
+            <p className="text-sm font-medium text-slate-900">
+              {appointment.serviceName}
             </p>
-            <div className="grid grid-cols-3 gap-2">
-              {slots.map((slot) => (
+            <p className="text-xs text-slate-500">
+              {appointment.durationMinutes} dk · {appointment.servicePrice} ₺
+            </p>
+            <p className="text-xs text-slate-400">{appointment.customerPhone}</p>
+          </div>
+
+          {/* Status grid */}
+          <div>
+            <p className="text-xs font-medium text-slate-500 mb-2 uppercase tracking-wide">
+              Durum Değiştir
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {ALL_STATUSES.map((s) => (
                 <button
-                  key={slot}
-                  onClick={() => setSelectedSlot(slot)}
-                  className={`py-2 rounded-lg text-sm font-medium border transition-colors ${
-                    selectedSlot === slot
-                      ? "bg-slate-900 text-white border-slate-900"
-                      : "bg-white text-slate-700 border-slate-200 hover:border-slate-400"
-                  }`}
+                  key={s}
+                  onClick={() => {
+                    onStatusChange(appointment.id, s);
+                    onClose();
+                  }}
+                  disabled={updating || appointment.status === s}
+                  className={`py-2 px-3 rounded-xl text-xs font-medium border transition-all ${
+                    appointment.status === s
+                      ? STATUS_BADGE_CLASS[s] + " cursor-default"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50 active:bg-slate-100"
+                  } disabled:opacity-50`}
                 >
-                  {slot}
+                  {appointment.status === s
+                    ? `✓ ${STATUS_LABELS[s]}`
+                    : STATUS_LABELS[s]}
                 </button>
               ))}
             </div>
-            {error && (
-              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-                {error}
-              </p>
-            )}
-            <div className="pt-2 border-t border-slate-100 space-y-1 text-sm text-slate-600">
-              <p>
-                <span className="font-medium">Müşteri:</span> {phone}{" "}
-                {name && `(${name})`}
-              </p>
-              <p>
-                <span className="font-medium">Hizmet:</span>{" "}
-                {selectedService?.serviceName}
-              </p>
-              <p>
-                <span className="font-medium">Saat:</span> {selectedSlot}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => setStep("form")}
-              >
-                Geri
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={handleBook}
-                disabled={!selectedSlot}
-              >
-                Randevuyu Onayla
-              </Button>
-            </div>
           </div>
-        )}
 
-        {step === "loading" && (
-          <div className="flex flex-col items-center justify-center py-10 gap-3 text-slate-500">
-            <Loader2 size={28} className="animate-spin" />
-            <p className="text-sm">Randevu oluşturuluyor...</p>
+          {/* Delete */}
+          <button
+            onClick={() => {
+              onDelete(appointment.id);
+              onClose();
+            }}
+            disabled={deleting}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-red-200 bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 active:bg-red-200 transition-colors disabled:opacity-50"
+          >
+            {deleting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Trash2 size={14} />
+            )}
+            Randevuyu Sil
+          </button>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// ─── Appointment Card ─────────────────────────────────────────────────────────
+
+function AppointmentCard({
+  appointment: appt,
+  isProcessing,
+  onClick,
+}: {
+  appointment: Appointment;
+  isProcessing: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Card
+      className="border-slate-200 shadow-sm cursor-pointer active:scale-[0.99] transition-transform"
+      onClick={onClick}
+    >
+      <CardContent className="pt-4 pb-3 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">
+              {appt.customerName}
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {appt.appointmentNumber} · {appt.appointmentDate}
+            </p>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+          <div className="flex items-center gap-2 shrink-0">
+            {isProcessing && (
+              <Loader2 size={13} className="animate-spin text-slate-400" />
+            )}
+            <Badge
+              variant="outline"
+              className={`text-xs border ${STATUS_BADGE_CLASS[appt.status]}`}
+            >
+              {STATUS_LABELS[appt.status]}
+            </Badge>
+          </div>
+        </div>
+
+        <p className="text-sm text-slate-700">
+          {appt.serviceName} — {appt.durationMinutes} dk · {appt.servicePrice} ₺
+        </p>
+
+        <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+          <p className="text-xs text-slate-400">{appt.customerPhone}</p>
+          <p className="text-xs text-slate-300">Detay için dokun →</p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -308,42 +223,33 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [bookingOpen, setBookingOpen] = useState(false);
+  const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [notifPermission, setNotifPermission] = useState<
     NotificationPermission | "unsupported"
   >("default");
 
-  // ── Read actual browser permission + check existing subscription on mount ──
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       setNotifPermission("unsupported");
       return;
     }
-
     const perm = Notification.permission;
     setNotifPermission(perm);
-
     if (perm === "granted" && "serviceWorker" in navigator) {
-      // Small delay to ensure sessionStorage is ready
       setTimeout(async () => {
         const adminKey = sessionStorage.getItem("admin_key");
-        if (!adminKey) return; // Not logged in yet
-
+        if (!adminKey) return;
         try {
           const reg = await navigator.serviceWorker.ready;
           const sub = await reg.pushManager.getSubscription();
           if (!sub) {
-            console.log("🔔 No subscription found, re-subscribing...");
             const newSub = await subscribeToPush();
-            if (newSub) {
-              await sendSubscriptionToBackend(newSub);
-              console.log("✅ Re-subscribed successfully");
-            }
+            if (newSub) await sendSubscriptionToBackend(newSub);
           }
         } catch (err) {
           console.error("Re-subscribe failed:", err);
         }
-      }, 1000); // 1 second delay
+      }, 1000);
     }
   }, []);
 
@@ -369,7 +275,10 @@ export default function DashboardPage() {
     try {
       await updateAppointmentStatus(id, status);
       setAppointments((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status } : a)),
+        prev.map((a) => (a.id === id ? { ...a, status } : a))
+      );
+      setSelectedAppt((prev) =>
+        prev?.id === id ? { ...prev, status } : prev
       );
     } finally {
       setUpdatingId(null);
@@ -391,14 +300,12 @@ export default function DashboardPage() {
 
   async function handleEnableNotifications() {
     const sub = await subscribeToPush();
-
     if (!sub) {
       setNotifPermission(
-        "Notification" in window ? Notification.permission : "unsupported",
+        "Notification" in window ? Notification.permission : "unsupported"
       );
       return;
     }
-
     try {
       await sendSubscriptionToBackend(sub);
       setNotifPermission("granted");
@@ -421,16 +328,68 @@ export default function DashboardPage() {
     month: "long",
   });
 
-  const activeCount = appointments.filter(
-    (a) => a.status === "Confirmed",
-  ).length;
-  const cancelledCount = appointments.filter(
-    (a) => a.status === "Cancelled",
-  ).length;
+  // ── Stats ──
+  const totalCustomers = new Set(appointments.map((a) => a.customerPhone)).size;
+  const pendingCount   = appointments.filter((a) => a.status === "Pending").length;
+  const confirmedCount = appointments.filter((a) => a.status === "Confirmed").length;
+  const doneCount      = appointments.filter((a) => a.status === "Done").length;
+  const cancelledCount = appointments.filter((a) => a.status === "Cancelled").length;
+  const noShowCount    = appointments.filter((a) => a.status === "NoShow").length;
+
+  const statCards = [
+    {
+      label: "Toplam Müşteri",
+      value: totalCustomers,
+      icon: Users,
+      colorClass: "text-slate-700",
+      bgClass: "bg-slate-50",
+      borderClass: "border-slate-200",
+    },
+    {
+      label: "Bekliyor",
+      value: pendingCount,
+      icon: Clock,
+      colorClass: "text-yellow-700",
+      bgClass: "bg-yellow-50",
+      borderClass: "border-yellow-200",
+    },
+    {
+      label: "Onaylandı",
+      value: confirmedCount,
+      icon: CheckCircle2,
+      colorClass: "text-green-700",
+      bgClass: "bg-green-50",
+      borderClass: "border-green-200",
+    },
+    {
+      label: "Tamamlandı",
+      value: doneCount,
+      icon: CalendarCheck2,
+      colorClass: "text-blue-700",
+      bgClass: "bg-blue-50",
+      borderClass: "border-blue-200",
+    },
+    {
+      label: "İptal",
+      value: cancelledCount,
+      icon: XCircle,
+      colorClass: "text-red-600",
+      bgClass: "bg-red-50",
+      borderClass: "border-red-200",
+    },
+    {
+      label: "Gelmedi",
+      value: noShowCount,
+      icon: MinusCircle,
+      colorClass: "text-slate-400",
+      bgClass: "bg-slate-50",
+      borderClass: "border-slate-200",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
-      {/* Header */}
+      {/* ── Header ── */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200">
         <div className="flex items-center justify-between px-4 h-14">
           <div>
@@ -440,7 +399,6 @@ export default function DashboardPage() {
             <p className="text-xs text-slate-500 capitalize">{today}</p>
           </div>
           <div className="flex items-center gap-1">
-            {/* Notification Bell */}
             {notifPermission === "granted" ? (
               <NotificationBell />
             ) : notifPermission === "denied" ? (
@@ -481,8 +439,6 @@ export default function DashboardPage() {
                 </span>
               </Button>
             )}
-
-            {/* Refresh */}
             <Button
               variant="ghost"
               size="icon"
@@ -492,8 +448,6 @@ export default function DashboardPage() {
             >
               <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
             </Button>
-
-            {/* Logout */}
             <Button
               variant="ghost"
               size="icon"
@@ -506,28 +460,33 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <main className="px-4 pt-4 space-y-3">
-        {/* Stats */}
+      <main className="px-4 pt-4 space-y-4">
+        {/* ── Stats Grid ── */}
         {!loading && !error && (
-          <div className="grid grid-cols-3 gap-2">
-            {(
-              [
-                ["Toplam", appointments.length, "text-slate-900"],
-                ["Onaylı", activeCount, "text-green-600"],
-                ["İptal", cancelledCount, "text-red-500"],
-              ] as [string, number, string][]
-            ).map(([label, count, color]) => (
-              <Card key={label} className="border-slate-200">
-                <CardContent className="pt-3 pb-3 text-center">
-                  <p className={`text-2xl font-bold ${color}`}>{count}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{label}</p>
-                </CardContent>
-              </Card>
+          <div className="grid grid-cols-2 gap-2">
+            {statCards.map(({ label, value, icon: Icon, colorClass, bgClass, borderClass }) => (
+              <div
+                key={label}
+                className={`rounded-2xl border p-3 flex items-center justify-between ${bgClass} ${borderClass}`}
+              >
+                <div>
+                  <p className="text-xs text-slate-500 mb-0.5">{label}</p>
+                  <p className={`text-2xl font-bold ${colorClass}`}>{value}</p>
+                </div>
+                <Icon size={22} className={`${colorClass} opacity-60`} />
+              </div>
             ))}
           </div>
         )}
 
-        {/* Loading */}
+        {/* ── Section label ── */}
+        {!loading && !error && appointments.length > 0 && (
+          <p className="text-xs text-slate-400 text-center pt-1">
+            Bugünün Randevuları
+          </p>
+        )}
+
+        {/* ── Loading ── */}
         {loading && (
           <div className="flex items-center justify-center py-16 text-slate-500">
             <Loader2 size={24} className="animate-spin mr-2" />
@@ -535,14 +494,14 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Error */}
+        {/* ── Error ── */}
         {error && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
             {error}
           </div>
         )}
 
-        {/* Empty */}
+        {/* ── Empty ── */}
         {!loading && !error && appointments.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-slate-400">
             <CalendarClock size={40} strokeWidth={1.25} className="mb-3" />
@@ -553,136 +512,30 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Appointment Cards */}
+        {/* ── Cards ── */}
         {!loading &&
           !error &&
           appointments.map((appt) => (
             <AppointmentCard
               key={appt.id}
               appointment={appt}
-              updating={updatingId === appt.id}
-              deleting={deletingId === appt.id}
-              onStatusChange={handleStatusChange}
-              onDelete={handleDelete}
+              isProcessing={updatingId === appt.id || deletingId === appt.id}
+              onClick={() => setSelectedAppt(appt)}
             />
           ))}
       </main>
 
-      {/* FAB — New Appointment */}
-      <button
-        onClick={() => setBookingOpen(true)}
-        className="fixed bottom-24 right-4 z-50 w-14 h-14 bg-slate-900 text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-transform"
-        aria-label="Yeni randevu ekle"
-      >
-        <Plus size={24} />
-      </button>
-
-      <BookingModal
-        open={bookingOpen}
-        onClose={() => setBookingOpen(false)}
-        onBooked={fetchAppointments}
+      {/* ── Shared Action Sheet ── */}
+      <AppointmentSheet
+        appointment={selectedAppt}
+        updating={updatingId === selectedAppt?.id}
+        deleting={deletingId === selectedAppt?.id}
+        onStatusChange={handleStatusChange}
+        onDelete={handleDelete}
+        onClose={() => setSelectedAppt(null)}
       />
 
       <BottomNav />
     </div>
-  );
-}
-
-// ─── Appointment Card ─────────────────────────────────────────────────────────
-
-function AppointmentCard({
-  appointment: appt,
-  updating,
-  deleting,
-  onStatusChange,
-  onDelete,
-}: {
-  appointment: Appointment;
-  updating: boolean;
-  deleting: boolean;
-  onStatusChange: (id: string, status: AppointmentStatus) => void;
-  onDelete: (id: string) => void;
-}) {
-  return (
-    <Card className="border-slate-200 shadow-sm">
-      <CardContent className="pt-4 pb-3 space-y-2">
-        {/* Top row */}
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">
-              {appt.customerName}
-            </p>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {appt.appointmentNumber} · {appt.appointmentDate}
-            </p>
-          </div>
-          <Badge
-            variant="outline"
-            className={`shrink-0 text-xs border ${STATUS_BADGE_CLASS[appt.status]}`}
-          >
-            {STATUS_LABELS[appt.status]}
-          </Badge>
-        </div>
-
-        {/* Service info */}
-        <p className="text-sm text-slate-700">
-          {appt.serviceName} — {appt.durationMinutes} dk · {appt.servicePrice} ₺
-        </p>
-
-        {/* Bottom row */}
-        <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-          <p className="text-xs text-slate-400">{appt.customerPhone}</p>
-          <div className="flex items-center gap-1.5">
-            {/* Delete button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-slate-400 hover:text-red-500"
-              onClick={() => onDelete(appt.id)}
-              disabled={deleting}
-              aria-label="Randevuyu sil"
-            >
-              {deleting ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : (
-                <Trash2 size={13} />
-              )}
-            </Button>
-
-            {/* Status dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs gap-1"
-                  disabled={updating}
-                >
-                  {updating ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : (
-                    <>
-                      <ChevronDown size={12} />
-                      Durum
-                    </>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {ALL_STATUSES.map((s) => (
-                  <DropdownMenuItem
-                    key={s}
-                    onClick={() => onStatusChange(appt.id, s)}
-                    className={appt.status === s ? "font-medium" : ""}
-                  >
-                    {STATUS_LABELS[s]}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
