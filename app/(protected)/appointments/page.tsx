@@ -110,7 +110,7 @@ function getDateStr(offset: number): string {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ViewMode = "list" | "calendar";
-type QuickFilter = "today" | "tomorrow" | "week" | "all";
+type QuickFilter = "all" | "today" | "tomorrow" | "week" ;
 
 // ─── Booking Bottom Sheet ─────────────────────────────────────────────────────
 
@@ -794,7 +794,7 @@ export default function AppointmentsPage() {
   const [bookingOpen, setBookingOpen] = useState(false);
 
   // ── List filters ──
-  const [quickFilter, setQuickFilter] = useState<QuickFilter>("today");
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>("all");
   const [customDate, setCustomDate] = useState("");
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "">("");
 
@@ -921,10 +921,10 @@ export default function AppointmentsPage() {
   }
 
   const quickButtons: { key: QuickFilter; label: string }[] = [
+    { key: "all", label: "Tümü" },
     { key: "today", label: "Bugün" },
     { key: "tomorrow", label: "Yarın" },
     { key: "week", label: "Bu Hafta" },
-    { key: "all", label: "Tümü" },
   ];
 
   return (
@@ -978,76 +978,98 @@ export default function AppointmentsPage() {
           </div>
         </div>
 
-        {/* ── Row 2 (list only): single scrollable filter strip ── */}
+        {/* ── Rows 2-4 (list only): 3 stacked filter rows, no scroll ── */}
         {viewMode === "list" && (
-          <div className="flex items-center gap-1.5 px-4 pb-2.5 overflow-x-auto scrollbar-none">
-            {/* Quick date pills */}
-            {quickButtons.map((btn) => (
+          <div className="px-4 pb-2.5 space-y-2">
+            {/* ── Row 2: Quick date pills ── */}
+            <div className="flex items-center gap-1.5">
+              {quickButtons.map((btn) => (
+                <button
+                  key={btn.key}
+                  onClick={() => {
+                    setQuickFilter(btn.key);
+                    setCustomDate("");
+                  }}
+                  className={`flex-1 py-1 rounded-full text-xs font-medium transition-colors ${
+                    quickFilter === btn.key && !customDate
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600 active:bg-slate-200"
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+
+            {/* ── Row 3: Status pills ── */}
+            <div className="flex items-center gap-1.5">
               <button
-                key={btn.key}
-                onClick={() => {
-                  setQuickFilter(btn.key);
-                  setCustomDate("");
-                }}
-                className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  quickFilter === btn.key && !customDate
-                    ? "bg-slate-900 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                onClick={() => setStatusFilter("")}
+                className={`flex-1 py-1 rounded-full text-xs font-medium transition-colors ${
+                  statusFilter === ""
+                    ? "bg-slate-700 text-white"
+                    : "bg-slate-100 text-slate-500 active:bg-slate-200"
                 }`}
               >
-                {btn.label}
+                Tümü
               </button>
-            ))}
+              {ALL_STATUSES.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className={`flex-1 py-1 rounded-full text-xs font-medium transition-colors border ${
+                    statusFilter === s
+                      ? STATUS_BADGE_CLASS[s]
+                      : "bg-slate-50 text-slate-500 border-slate-200 active:bg-slate-100"
+                  }`}
+                >
+                  {STATUS_LABELS[s]}
+                </button>
+              ))}
+            </div>
 
-            {/* Divider */}
-            <span className="shrink-0 w-px h-4 bg-slate-200 mx-0.5" />
-
-            {/* Status pills */}
-            <button
-              onClick={() => setStatusFilter("")}
-              className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                statusFilter === ""
-                  ? "bg-slate-700 text-white"
-                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-              }`}
-            >
-              Tüm Durumlar
-            </button>
-            {ALL_STATUSES.map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
-                  statusFilter === s
-                    ? STATUS_BADGE_CLASS[s]
-                    : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+            {/* ── Row 4: Tarih date picker ── */}
+            <div className="flex items-center gap-2">
+              <label
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-colors ${
+                  customDate
+                    ? "bg-slate-900 text-white border-slate-900"
+                    : "bg-slate-50 text-slate-500 border-slate-200 active:bg-slate-100"
                 }`}
               >
-                {STATUS_LABELS[s]}
-              </button>
-            ))}
+                <CalendarClock size={11} />
+                {customDate
+                  ? new Date(customDate + "T00:00:00").toLocaleDateString(
+                      "tr-TR",
+                      {
+                        day: "numeric",
+                        month: "short",
+                      },
+                    )
+                  : "Tarih Seç"}
+                <input
+                  type="date"
+                  value={customDate}
+                  onChange={(e) => {
+                    setCustomDate(e.target.value);
+                    setQuickFilter("all");
+                  }}
+                  className="sr-only"
+                />
+              </label>
 
-            {/* Date picker — small calendar icon button */}
-            <span className="shrink-0 w-px h-4 bg-slate-200 mx-0.5" />
-            <label
-              className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer transition-colors ${
-                customDate
-                  ? "bg-slate-900 text-white border-slate-900"
-                  : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-              }`}
-            >
-              <CalendarClock size={11} />
-              {customDate || "Tarih"}
-              <input
-                type="date"
-                value={customDate}
-                onChange={(e) => {
-                  setCustomDate(e.target.value);
-                  setQuickFilter("all");
-                }}
-                className="sr-only"
-              />
-            </label>
+              {customDate && (
+                <button
+                  onClick={() => {
+                    setCustomDate("");
+                    setQuickFilter("today");
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-600 active:text-slate-800 transition-colors"
+                >
+                  Temizle ✕
+                </button>
+              )}
+            </div>
           </div>
         )}
 
