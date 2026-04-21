@@ -2,10 +2,12 @@ import type {
   Appointment,
   AppointmentStatus,
   BookAppointmentPayload,
+  ChatHistoryResponse,
   Customer,
   DashboardStats,
   NotificationsResponse,
   PaginatedAppointments,
+  PaginatedCustomers,
   Service,
   ServicePayload,
   SlotStatus,
@@ -209,6 +211,40 @@ export async function getAppointmentsPaginated(params?: {
   if (params?.limit) query.set("limit", String(params.limit));
   const qs = query.toString();
   return apiFetch<PaginatedAppointments>(
-    `/api/admin/appointments${qs ? `?${qs}` : ""}`
+    `/api/admin/appointments${qs ? `?${qs}` : ""}`,
+  );
+}
+
+// ─── Paginated Customers ──────────────────────────────────────────────────────
+
+export async function getCustomersPaginated(params?: {
+  search?: string;
+  page?: number;
+  limit?: number;
+}): Promise<PaginatedCustomers> {
+  const query = new URLSearchParams();
+  if (params?.search) query.set("search", params.search);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  return apiFetch<PaginatedCustomers>(
+    `/api/admin/customers${qs ? `?${qs}` : ""}`,
+  );
+}
+
+// ─── Chat History ─────────────────────────────────────────────────────────────
+
+export async function getChatHistory(params: {
+  phone?: string;
+  page?: number;
+  limit?: number;
+}): Promise<ChatHistoryResponse> {
+  const query = new URLSearchParams();
+  if (params.phone) query.set("phone", params.phone);
+  if (params.page) query.set("page", String(params.page));
+  if (params.limit) query.set("limit", String(params.limit));
+  const qs = query.toString();
+  return apiFetch<ChatHistoryResponse>(
+    `/api/admin/chat-history${qs ? `?${qs}` : ""}`,
   );
 }

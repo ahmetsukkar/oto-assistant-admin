@@ -67,7 +67,7 @@ export interface NotificationsResponse {
 export interface WorkshopSettings {
   id: number;
   workStartTime: string; // "09:00:00"
-  workEndTime: string;   // "18:00:00"
+  workEndTime: string; // "18:00:00"
   slotDurationMinutes: number;
   sundayOpen: boolean;
   mondayOpen: boolean;
@@ -79,12 +79,12 @@ export interface WorkshopSettings {
 }
 
 export interface SlotStatus {
-  slotTime: string;   // "09:00"
+  slotTime: string; // "09:00"
   isEnabled: boolean;
 }
 
 export interface UpdateSlotPayload {
-  dayOfWeek: number;  // 0=Sunday … 6=Saturday
+  dayOfWeek: number; // 0=Sunday … 6=Saturday
   slotTime: string;
   isEnabled: boolean;
 }
@@ -110,4 +110,45 @@ export interface PaginatedAppointments {
   totalPages: number;
   hasMore: boolean;
   appointments: Appointment[];
+}
+
+// ─── Paginated Customers ──────────────────────────────────────────────────────
+
+export interface PaginatedCustomers {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  hasMore: boolean;
+  customers: Customer[];
+}
+
+// ─── Chat History ─────────────────────────────────────────────────────────────
+
+export enum MessageRole {
+  User,
+  Assistant,
+}
+export interface ChatMessage {
+  id: string;
+  phone: string;
+  role: MessageRole;
+  message: string;
+  createdAt: string;
+}
+
+export interface ChatHistoryResponse {
+  page: number;
+  limit: number;
+  totalCount: number;
+  totalPages: number;
+  hasMore: boolean;
+  messages: ChatMessage[];
+}
+
+export interface ChatCustomer {
+  phone: string;
+  messageCount: number;
+  lastMessage: string | null;
+  lastAt: string;
 }

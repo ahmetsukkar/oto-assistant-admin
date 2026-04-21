@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-  getAppointments,
+  getAppointmentsPaginated,
   updateAppointmentStatus,
   deleteAppointment,
   getServices,
@@ -71,6 +71,8 @@ const ALL_STATUSES: AppointmentStatus[] = [
 
 const DAY_NAMES_SHORT = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
 
+const PAGE_LIMIT = 10;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function toDateStr(d: Date): string {
@@ -109,8 +111,6 @@ function getDateStr(offset: number): string {
 
 type ViewMode = "list" | "calendar";
 type QuickFilter = "today" | "tomorrow" | "week" | "all";
-
-// ─── Booking Modal ────────────────────────────────────────────────────────────
 
 // ─── Booking Bottom Sheet ─────────────────────────────────────────────────────
 
@@ -199,12 +199,6 @@ function BookingModal({
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
-      {/*
-        rounded-t-2xl + max-h-[92dvh] + overflow-y-auto:
-        - Sheet slides up ABOVE the keyboard on mobile
-        - Content is scrollable if keyboard shrinks the visible area
-        - 92dvh leaves a small top gap so users know they can dismiss
-      */}
       <SheetContent
         side="bottom"
         className="rounded-t-2xl px-0 pb-0 max-h-[92dvh] flex flex-col"
@@ -214,12 +208,14 @@ function BookingModal({
         </SheetHeader>
 
         <div className="overflow-y-auto flex-1 px-5 pb-8">
-
           {/* ── Step: form ── */}
           {step === "form" && (
             <div className="space-y-4 pt-4">
               <div className="space-y-1.5">
-                <Label htmlFor="bk-phone" className="text-xs font-medium text-slate-700">
+                <Label
+                  htmlFor="bk-phone"
+                  className="text-xs font-medium text-slate-700"
+                >
                   Telefon *
                 </Label>
                 <Input
@@ -229,12 +225,15 @@ function BookingModal({
                   placeholder="905XXXXXXXXX"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="h-11 text-base" /* text-base prevents iOS zoom */
+                  className="h-11 text-base"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bk-name" className="text-xs font-medium text-slate-700">
+                <Label
+                  htmlFor="bk-name"
+                  className="text-xs font-medium text-slate-700"
+                >
                   İsim (opsiyonel)
                 </Label>
                 <Input
@@ -247,15 +246,12 @@ function BookingModal({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bk-service" className="text-xs font-medium text-slate-700">
+                <Label
+                  htmlFor="bk-service"
+                  className="text-xs font-medium text-slate-700"
+                >
                   Hizmet *
                 </Label>
-                {/*
-                  Native <select> instead of shadcn Select:
-                  - On iOS → opens native wheel picker (full screen)
-                  - On Android → opens native dialog (full screen)
-                  - No floating dropdown that covers the form
-                */}
                 <select
                   id="bk-service"
                   value={serviceId}
@@ -278,7 +274,10 @@ function BookingModal({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="bk-date" className="text-xs font-medium text-slate-700">
+                <Label
+                  htmlFor="bk-date"
+                  className="text-xs font-medium text-slate-700"
+                >
                   Tarih *
                 </Label>
                 <Input
@@ -314,7 +313,8 @@ function BookingModal({
           {step === "slots" && (
             <div className="space-y-4 pt-4">
               <p className="text-sm text-slate-600">
-                <span className="font-medium">{date}</span> tarihinde müsait saatler:
+                <span className="font-medium">{date}</span> tarihinde müsait
+                saatler:
               </p>
 
               <div className="grid grid-cols-3 gap-2">
@@ -379,7 +379,6 @@ function BookingModal({
               <p className="text-sm">Randevu oluşturuluyor...</p>
             </div>
           )}
-
         </div>
       </SheetContent>
     </Sheet>
@@ -780,16 +779,21 @@ function CalendarTimeline({
 export default function AppointmentsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
 
-  // ── Shared ──
+  // ── Shared state ──
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
+
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
 
-  // ── List state ──
+  // ── List filters ──
   const [quickFilter, setQuickFilter] = useState<QuickFilter>("today");
   const [customDate, setCustomDate] = useState("");
   const [statusFilter, setStatusFilter] = useState<AppointmentStatus | "">("");
@@ -800,25 +804,50 @@ export default function AppointmentsPage() {
     getWeekStart(new Date()),
   );
 
-  // ── Fetch all ──
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
+  // ─── Fetch a single page from the API ────────────────────────────────────────
+  const fetchPage = useCallback(async (p: number, reset: boolean) => {
+    if (reset) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
     setError("");
     try {
-      const data = await getAppointments();
-      setAllAppointments(data);
+      const res = await getAppointmentsPaginated({
+        page: p,
+        limit: PAGE_LIMIT,
+      });
+      setAllAppointments((prev) =>
+        reset ? res.appointments : [...prev, ...res.appointments],
+      );
+      setHasMore(res.hasMore);
+      setTotalCount(res.totalCount);
+      setPage(p);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Randevular yüklenemedi.");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 
+  // ── Initial load ──
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    fetchPage(1, true);
+  }, [fetchPage]);
 
-  // ── Derived: list appointments ──
+  // ── Refresh (reset to page 1) ──
+  const handleRefresh = useCallback(() => {
+    fetchPage(1, true);
+  }, [fetchPage]);
+
+  // ── Load next page ──
+  function handleLoadMore() {
+    if (!hasMore || loadingMore) return;
+    fetchPage(page + 1, false);
+  }
+
+  // ── Derived: list appointments (client-side filtering) ──
   const listAppointments = (() => {
     let filtered = [...allAppointments];
 
@@ -883,6 +912,7 @@ export default function AppointmentsPage() {
     try {
       await deleteAppointment(id);
       setAllAppointments((prev) => prev.filter((a) => a.id !== id));
+      setTotalCount((c) => Math.max(0, c - 1));
     } catch {
       alert("Randevu silinemedi.");
     } finally {
@@ -901,75 +931,113 @@ export default function AppointmentsPage() {
     <div className="min-h-screen bg-slate-50 pb-20">
       {/* ── Header ── */}
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200">
-        <div className="flex items-center justify-between px-4 h-14">
+        {/* ── Row 1: Title + controls ── */}
+        <div className="flex items-center justify-between px-4 h-12">
           <div className="flex items-center gap-2">
-            <CalendarDays size={18} className="text-slate-600" />
-            <h1 className="text-base font-semibold text-slate-900">
-              Randevular
-            </h1>
+            <CalendarDays size={17} className="text-slate-600" />
+            <h1 className="text-sm font-semibold text-slate-900">Randevular</h1>
+            {!loading && totalCount > 0 && (
+              <span className="text-xs text-slate-400">({totalCount})</span>
+            )}
           </div>
+
           <div className="flex items-center gap-1">
             {/* View toggle */}
-            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 mr-1">
+            <div className="flex items-center bg-slate-100 rounded-lg p-0.5">
               <button
                 onClick={() => setViewMode("list")}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all ${
                   viewMode === "list"
                     ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    : "text-slate-500"
                 }`}
-                aria-label="Liste görünümü"
               >
-                <List size={13} />
-                Liste
+                <List size={12} /> Liste
               </button>
               <button
                 onClick={() => setViewMode("calendar")}
-                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium transition-all ${
                   viewMode === "calendar"
                     ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    : "text-slate-500"
                 }`}
-                aria-label="Takvim görünümü"
               >
-                <Calendar size={13} />
-                Takvim
+                <Calendar size={12} /> Takvim
               </button>
             </div>
 
             <Button
               variant="ghost"
               size="icon"
-              onClick={fetchAll}
+              className="w-8 h-8"
+              onClick={handleRefresh}
               disabled={loading}
-              aria-label="Yenile"
             >
-              <RefreshCw size={17} className={loading ? "animate-spin" : ""} />
+              <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
             </Button>
           </div>
         </div>
 
-        {/* ── List filters ── */}
+        {/* ── Row 2 (list only): single scrollable filter strip ── */}
         {viewMode === "list" && (
-          <div className="px-4 pb-3 space-y-2">
-            {/* Row 1: Quick date filters + date picker */}
-            <div className="flex flex-wrap gap-1.5">
-              {quickButtons.map((btn) => (
-                <button
-                  key={btn.key}
-                  onClick={() => {
-                    setQuickFilter(btn.key);
-                    setCustomDate("");
-                  }}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    quickFilter === btn.key && !customDate
-                      ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                  }`}
-                >
-                  {btn.label}
-                </button>
-              ))}
+          <div className="flex items-center gap-1.5 px-4 pb-2.5 overflow-x-auto scrollbar-none">
+            {/* Quick date pills */}
+            {quickButtons.map((btn) => (
+              <button
+                key={btn.key}
+                onClick={() => {
+                  setQuickFilter(btn.key);
+                  setCustomDate("");
+                }}
+                className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  quickFilter === btn.key && !customDate
+                    ? "bg-slate-900 text-white"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
+
+            {/* Divider */}
+            <span className="shrink-0 w-px h-4 bg-slate-200 mx-0.5" />
+
+            {/* Status pills */}
+            <button
+              onClick={() => setStatusFilter("")}
+              className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                statusFilter === ""
+                  ? "bg-slate-700 text-white"
+                  : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+              }`}
+            >
+              Tüm Durumlar
+            </button>
+            {ALL_STATUSES.map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+                  statusFilter === s
+                    ? STATUS_BADGE_CLASS[s]
+                    : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                {STATUS_LABELS[s]}
+              </button>
+            ))}
+
+            {/* Date picker — small calendar icon button */}
+            <span className="shrink-0 w-px h-4 bg-slate-200 mx-0.5" />
+            <label
+              className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer transition-colors ${
+                customDate
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              <CalendarClock size={11} />
+              {customDate || "Tarih"}
               <input
                 type="date"
                 value={customDate}
@@ -977,40 +1045,9 @@ export default function AppointmentsPage() {
                   setCustomDate(e.target.value);
                   setQuickFilter("all");
                 }}
-                className={`h-7 px-2 rounded-full text-xs border transition-colors cursor-pointer ${
-                  customDate
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-slate-100 text-slate-600"
-                }`}
+                className="sr-only"
               />
-            </div>
-
-            {/* Row 2: Status filters */}
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => setStatusFilter("")}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  statusFilter === ""
-                    ? "bg-slate-700 text-white"
-                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                }`}
-              >
-                Tümü
-              </button>
-              {ALL_STATUSES.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
-                    statusFilter === s
-                      ? STATUS_BADGE_CLASS[s]
-                      : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  {STATUS_LABELS[s]}
-                </button>
-              ))}
-            </div>
+            </label>
           </div>
         )}
 
@@ -1032,20 +1069,26 @@ export default function AppointmentsPage() {
         <main className="px-4 pt-4 space-y-3">
           {!loading && !error && listAppointments.length > 0 && (
             <p className="text-xs text-slate-400 px-1">
-              {listAppointments.length} randevu listeleniyor
+              {listAppointments.length} randevu gösteriliyor
+              {hasMore && (
+                <span className="text-slate-300"> · {totalCount} toplam</span>
+              )}
             </p>
           )}
+
           {loading && (
             <div className="flex items-center justify-center py-16 text-slate-500">
               <Loader2 size={24} className="animate-spin mr-2" />
               <span className="text-sm">Yükleniyor...</span>
             </div>
           )}
+
           {error && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
               {error}
             </div>
           )}
+
           {!loading && !error && listAppointments.length === 0 && (
             <div className="flex flex-col items-center justify-center py-16 text-slate-400">
               <CalendarClock size={40} strokeWidth={1.25} className="mb-3" />
@@ -1055,6 +1098,7 @@ export default function AppointmentsPage() {
               <p className="text-xs mt-1">Seçilen filtre için randevu yok</p>
             </div>
           )}
+
           {!loading &&
             !error &&
             listAppointments.map((appt) => (
@@ -1065,6 +1109,22 @@ export default function AppointmentsPage() {
                 onClick={() => setSelectedAppt(appt)}
               />
             ))}
+
+          {/* ── Load more button ── */}
+          {!loading && !error && hasMore && (
+            <div className="flex justify-center pt-2 pb-4">
+              <button
+                onClick={handleLoadMore}
+                disabled={loadingMore}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-full border border-slate-200 bg-white text-xs font-medium text-slate-600 hover:bg-slate-50 active:bg-slate-100 disabled:opacity-50 transition-colors shadow-sm"
+              >
+                {loadingMore ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : null}
+                Daha fazla yükle
+              </button>
+            </div>
+          )}
         </main>
       )}
 
@@ -1095,7 +1155,7 @@ export default function AppointmentsPage() {
       <BookingModal
         open={bookingOpen}
         onClose={() => setBookingOpen(false)}
-        onBooked={fetchAll}
+        onBooked={handleRefresh}
       />
 
       {/* ── Action Sheet ── */}
