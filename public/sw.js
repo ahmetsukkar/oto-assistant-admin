@@ -1,16 +1,27 @@
 // public/sw.js - Manual Service Worker
+// Bump CACHE_VERSION on every deploy so old caches are cleaned out and
+// users don't get stuck on stale JS chunks.
+const CACHE_VERSION = "assistly-v1";
 
 self.addEventListener("install", function(event) {
   self.skipWaiting();
 });
 
 self.addEventListener("activate", function(event) {
-  event.waitUntil(clients.claim());
+  // Delete any old caches whose name doesn't match the current version.
+  event.waitUntil(
+    caches.keys().then(function(keys) {
+      return Promise.all(
+        keys.filter(function(k) { return k !== CACHE_VERSION; })
+            .map(function(k) { return caches.delete(k); })
+      );
+    }).then(function() { return clients.claim(); })
+  );
 });
 
 self.addEventListener("push", function(event) {
   var data = {
-    title: "OtoAssistant 🔧",
+    title: "Assistly",
     body: "Yeni bir bildiriminiz var.",
     url: "/dashboard"
   };
@@ -19,7 +30,7 @@ self.addEventListener("push", function(event) {
       data = event.data.json();
     } catch(e) {
       data = {
-        title: "OtoAssistant 🔧",
+        title: "Assistly",
         body: event.data.text() || "Yeni bir bildiriminiz var.",
         url: "/dashboard"
       };

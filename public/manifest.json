@@ -1,7 +1,7 @@
 {
-  "name": "OtoAssistant Yönetim",
-  "short_name": "OtoAsistan",
-  "description": "Oto tamir atölyesi yönetim paneli",
+  "name": "Assistly Yönetim",
+  "short_name": "Assistly",
+  "description": "İşletme yönetim paneli",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#f8fafc",

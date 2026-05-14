@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wrench, Loader2 } from "lucide-react";
+import { MessageSquare, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,7 +20,7 @@ export default function LoginPage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!pin.trim()) {
-      setError("Lütfen PIN giriniz.");
+      setError("Lütfen erişim anahtarınızı giriniz.");
       return;
     }
 
@@ -40,16 +40,33 @@ export default function LoginPage() {
       );
 
       if (!res.ok) {
-        setError("Geçersiz PIN. Lütfen tekrar deneyiniz.");
+        setError("Geçersiz erişim anahtarı. Lütfen tekrar deneyiniz.");
         setLoading(false);
         return;
       }
 
-      // Store in sessionStorage
+      // Store key in sessionStorage + cookie
       sessionStorage.setItem("admin_key", pin.trim());
-
-      // Set cookie for middleware
       document.cookie = `admin_key=${pin.trim()}; path=/; SameSite=Strict`;
+
+      // Fetch and cache workshop identity for BusinessContext
+      try {
+        const meRes = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/admin/me`,
+          {
+            headers: {
+              "X-Admin-Key": pin.trim(),
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        if (meRes.ok) {
+          const info = await meRes.json();
+          sessionStorage.setItem("workshop_info", JSON.stringify(info));
+        }
+      } catch {
+        // non-fatal — BusinessContextProvider will retry on mount
+      }
 
       router.push("/dashboard");
     } catch {
@@ -64,11 +81,11 @@ export default function LoginPage() {
         {/* Logo / Brand */}
         <div className="flex flex-col items-center gap-3">
           <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-900 text-white">
-            <Wrench size={28} strokeWidth={1.75} />
+            <MessageSquare size={28} strokeWidth={1.75} />
           </div>
           <div className="text-center">
             <h1 className="text-xl font-semibold text-slate-900">
-              OtoAssistant
+              Assistly
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">Yönetim Paneli</p>
           </div>
@@ -88,12 +105,12 @@ export default function LoginPage() {
                   htmlFor="pin"
                   className="text-sm font-medium text-slate-600"
                 >
-                  Admin PIN
+                  Erişim Anahtarı
                 </label>
                 <Input
                   id="pin"
                   type="password"
-                  placeholder="PIN kodunuzu giriniz"
+                  placeholder="Erişim anahtarınızı giriniz"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
                   autoComplete="current-password"
@@ -127,7 +144,7 @@ export default function LoginPage() {
         </Card>
 
         <p className="text-center text-xs text-slate-400">
-          OtoAssistant © {year}
+          Assistly © {year}
         </p>
       </div>
     </div>

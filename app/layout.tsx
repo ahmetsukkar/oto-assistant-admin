@@ -8,13 +8,13 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "OtoAssistant Yönetim",
-  description: "Oto tamir atölyesi yönetim paneli",
+  title: "Assistly Yönetim",
+  description: "İşletme yönetim paneli",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "OtoAssistant",
+    title: "Assistly",
   },
   other: {
     "mobile-web-app-capable": "yes",

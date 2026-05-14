@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import type { SlotStatus, WorkshopSettings } from "@/lib/types";
 import BottomNav from "@/components/BottomNav";
+import AIToggle from "@/components/AIToggle";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -178,6 +179,9 @@ export default function SettingsPage() {
       </header>
 
       <main className="px-4 pt-4 space-y-4">
+        {/* AI Auto-reply toggle (workshop-wide) */}
+        <AIToggle size="full" />
+
         {/* Error */}
         {error && (
           <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">

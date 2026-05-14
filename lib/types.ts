@@ -1,3 +1,27 @@
+// ─── Business Type ────────────────────────────────────────────────────────────
+
+export type BusinessType = "CarWorkshop" | "Barber" | "Clinic" | "Restaurant";
+
+export interface BusinessTypeConfig {
+  appointmentLabel: string;
+  customerLabel: string;
+  serviceLabel: string;
+  showServicePricing: boolean;
+  hasVehicleInfo: boolean;
+  hasStaffAssignment: boolean;
+  requiresPartySize: boolean;
+}
+
+export interface WorkshopInfo {
+  workshopId: string;
+  workshopName: string;
+  businessType: BusinessType;
+  aiEnabled: boolean;
+  businessTypeConfig: BusinessTypeConfig;
+}
+
+// ─── Appointments ─────────────────────────────────────────────────────────────
+
 export type AppointmentStatus =
   | "Pending"
   | "Confirmed"

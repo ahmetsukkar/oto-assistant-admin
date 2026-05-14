@@ -12,6 +12,7 @@ import type {
   ServicePayload,
   SlotStatus,
   UpdateSlotPayload,
+  WorkshopInfo,
   WorkshopSettings,
 } from "./types";
 
@@ -44,6 +45,19 @@ async function apiFetch<T>(
   if (res.status === 204) return undefined as T;
 
   return res.json() as Promise<T>;
+}
+
+// ─── Workshop Identity ────────────────────────────────────────────────────────
+
+export function getMe(): Promise<WorkshopInfo> {
+  return apiFetch<WorkshopInfo>("/api/admin/me");
+}
+
+export function setAIEnabled(enabled: boolean): Promise<{ aiEnabled: boolean }> {
+  return apiFetch<{ aiEnabled: boolean }>("/api/admin/ai-enabled", {
+    method: "PUT",
+    body: JSON.stringify({ enabled }),
+  });
 }
 
 // ─── Appointments ─────────────────────────────────────────────────────────────
