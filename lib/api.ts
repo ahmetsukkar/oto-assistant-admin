@@ -60,6 +60,28 @@ export function setAIEnabled(enabled: boolean): Promise<{ aiEnabled: boolean }> 
   });
 }
 
+// ─── Workshop Profile (display name + bot name) ──────────────────────────────
+
+export interface WorkshopProfile {
+  name: string;
+  botName: string | null;
+  businessType: string;
+}
+
+export function getWorkshopProfile(): Promise<WorkshopProfile> {
+  return apiFetch<WorkshopProfile>("/api/admin/workshop-profile");
+}
+
+export function updateWorkshopProfile(payload: {
+  name: string;
+  botName?: string | null;
+}): Promise<WorkshopProfile> {
+  return apiFetch<WorkshopProfile>("/api/admin/workshop-profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
 // ─── Appointments ─────────────────────────────────────────────────────────────
 
 export async function getTodayAppointments(): Promise<Appointment[]> {
@@ -261,4 +283,123 @@ export async function getChatHistory(params: {
   return apiFetch<ChatHistoryResponse>(
     `/api/admin/chat-history${qs ? `?${qs}` : ""}`,
   );
+}
+
+export interface SentMessageResponse {
+  id: string;
+  phone: string;
+  /** 0 = User, 1 = Assistant — matches the existing GET /chat-history response. */
+  role: number;
+  message: string;
+  createdAt: string;
+}
+
+export function sendChatMessage(payload: {
+  phone: string;
+  message: string;
+}): Promise<SentMessageResponse> {
+  return apiFetch<SentMessageResponse>("/api/admin/chat-history/send", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ─── Per-customer AI override ────────────────────────────────────────────────
+
+export interface CustomerAiState {
+  /** null = inherit from workshop, true/false = explicit override */
+  customerOverride: boolean | null;
+  workshopAiEnabled: boolean;
+  /** What the bot will actually do for this customer */
+  effectiveAiEnabled: boolean;
+  customerExists?: boolean;
+}
+
+export function getCustomerAiEnabled(phone: string): Promise<CustomerAiState> {
+  return apiFetch<CustomerAiState>(
+    `/api/admin/customers/${encodeURIComponent(phone)}/ai-enabled`,
+  );
+}
+
+export function setCustomerAiEnabled(
+  phone: string,
+  aiEnabled: boolean | null,
+): Promise<CustomerAiState> {
+  return apiFetch<CustomerAiState>(
+    `/api/admin/customers/${encodeURIComponent(phone)}/ai-enabled`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ aiEnabled }),
+    },
+  );
+}
+
+// ─── WhatsApp Business Profile (Meta-managed workshops only) ─────────────────
+
+export interface WhatsAppProfileSupported {
+  supported: true;
+  provider: string;
+  about: string | null;
+  address: string | null;
+  description: string | null;
+  email: string | null;
+  profilePictureUrl: string | null;
+  websites: string[] | null;
+  vertical: string | null;
+  /** Read-only — verified display name. Changing requires Meta Business Manager. */
+  verifiedName: string | null;
+}
+
+export interface WhatsAppProfileUnsupported {
+  supported: false;
+  provider: string;
+}
+
+export type WhatsAppProfileResponse =
+  | WhatsAppProfileSupported
+  | WhatsAppProfileUnsupported;
+
+export function getWhatsAppProfile(): Promise<WhatsAppProfileResponse> {
+  return apiFetch<WhatsAppProfileResponse>("/api/admin/whatsapp-profile");
+}
+
+export function updateWhatsAppProfile(payload: {
+  about?: string | null;
+  address?: string | null;
+  description?: string | null;
+  email?: string | null;
+  websites?: string[] | null;
+  vertical?: string | null;
+}): Promise<WhatsAppProfileResponse> {
+  return apiFetch<WhatsAppProfileResponse>("/api/admin/whatsapp-profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * Uploads a profile picture. Multipart upload (cannot use apiFetch helper because
+ * we don't set Content-Type — the browser sets it with the boundary).
+ */
+export async function uploadWhatsAppProfilePicture(
+  file: File,
+): Promise<{ profilePictureUrl: string | null; mediaId: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const url = `${BASE_URL}/api/admin/whatsapp-profile/picture`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "X-Admin-Key": getAdminKey(),
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "Bilinmeyen hata");
+    throw new Error(errorText || `HTTP ${res.status}`);
+  }
+
+  return res.json();
 }

@@ -21,6 +21,8 @@ interface BusinessContextValue {
   aiEnabled: boolean;
   /** Toggles AI on/off on the backend and updates local state. */
   setAIEnabled: (enabled: boolean) => Promise<void>;
+  /** Re-fetches workshop info from the API (use after editing name/profile). */
+  refreshWorkshopInfo: () => Promise<void>;
 }
 
 const BusinessContext = createContext<BusinessContextValue>({
@@ -29,6 +31,7 @@ const BusinessContext = createContext<BusinessContextValue>({
   config: defaultConfig,
   aiEnabled: true,
   setAIEnabled: async () => {},
+  refreshWorkshopInfo: async () => {},
 });
 
 export function useBusinessContext() {
@@ -36,7 +39,9 @@ export function useBusinessContext() {
 }
 
 export function BusinessContextProvider({ children }: { children: ReactNode }) {
-  const [value, setValue] = useState<Omit<BusinessContextValue, "setAIEnabled">>({
+  const [value, setValue] = useState<
+    Omit<BusinessContextValue, "setAIEnabled" | "refreshWorkshopInfo">
+  >({
     workshopName: "",
     businessType: "CarWorkshop",
     config: defaultConfig,
@@ -59,6 +64,17 @@ export function BusinessContextProvider({ children }: { children: ReactNode }) {
         // ignore
       }
       return next;
+    });
+  }, []);
+
+  const refreshWorkshopInfo = useCallback(async () => {
+    const info = await getMe();
+    sessionStorage.setItem("workshop_info", JSON.stringify(info));
+    setValue({
+      workshopName: info.workshopName,
+      businessType: info.businessType,
+      config: info.businessTypeConfig,
+      aiEnabled: info.aiEnabled ?? true,
     });
   }, []);
 
@@ -95,7 +111,7 @@ export function BusinessContextProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <BusinessContext.Provider value={{ ...value, setAIEnabled }}>
+    <BusinessContext.Provider value={{ ...value, setAIEnabled, refreshWorkshopInfo }}>
       {children}
     </BusinessContext.Provider>
   );

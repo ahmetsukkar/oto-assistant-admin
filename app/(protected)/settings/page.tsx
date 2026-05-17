@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import {
   getWorkshopSettings,
   updateWorkshopSettings,
   getSlotStatuses,
   updateSlot,
+  getWorkshopProfile,
+  updateWorkshopProfile,
+  type WorkshopProfile,
 } from "@/lib/api";
+import { useBusinessContext } from "@/lib/business-context";
 import type { SlotStatus, WorkshopSettings } from "@/lib/types";
 import BottomNav from "@/components/BottomNav";
 import AIToggle from "@/components/AIToggle";
@@ -14,7 +19,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Settings, Save, Clock } from "lucide-react";
+import {
+  Loader2,
+  Settings,
+  Save,
+  Clock,
+  Bot,
+  MessageCircle,
+  ChevronRight,
+} from "lucide-react";
 
 const DAYS = [
   { key: "mondayOpen" as keyof WorkshopSettings, label: "Pazartesi", dow: 1 },
@@ -30,11 +43,22 @@ const anyDayOpen = (s: WorkshopSettings) =>
   DAYS.some((d) => s[d.key] as boolean);
 
 export default function SettingsPage() {
+  const { refreshWorkshopInfo } = useBusinessContext();
   const [settings, setSettings] = useState<WorkshopSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState("");
+
+  // Workshop profile state
+  const [profile, setProfile] = useState<WorkshopProfile | null>(null);
+  const [profileForm, setProfileForm] = useState<{ name: string; botName: string }>({
+    name: "",
+    botName: "",
+  });
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileSaveSuccess, setProfileSaveSuccess] = useState(false);
+  const [profileError, setProfileError] = useState("");
 
   // Slot editor state
   const [selectedDow, setSelectedDow] = useState<number>(1);
@@ -42,13 +66,44 @@ export default function SettingsPage() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [togglingSlot, setTogglingSlot] = useState<string | null>(null);
 
-  // ── Load settings on mount ─────────────────────────────────────────────────
+  // ── Load settings + workshop profile on mount ──────────────────────────────
   useEffect(() => {
-    getWorkshopSettings()
-      .then(setSettings)
+    Promise.all([getWorkshopSettings(), getWorkshopProfile()])
+      .then(([s, p]) => {
+        setSettings(s);
+        setProfile(p);
+        setProfileForm({ name: p.name, botName: p.botName ?? "" });
+      })
       .catch(() => setError("Ayarlar yüklenemedi."))
       .finally(() => setLoading(false));
   }, []);
+
+  // ── Save workshop profile (name + bot name) ────────────────────────────────
+  async function handleSaveProfile() {
+    if (!profileForm.name.trim()) {
+      setProfileError("Atölye adı boş olamaz.");
+      return;
+    }
+    setSavingProfile(true);
+    setProfileError("");
+    setProfileSaveSuccess(false);
+    try {
+      const updated = await updateWorkshopProfile({
+        name: profileForm.name.trim(),
+        botName: profileForm.botName.trim() || null,
+      });
+      setProfile(updated);
+      setProfileForm({ name: updated.name, botName: updated.botName ?? "" });
+      // Refresh global context so the header shows the new name
+      await refreshWorkshopInfo();
+      setProfileSaveSuccess(true);
+      setTimeout(() => setProfileSaveSuccess(false), 2500);
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Profil kaydedilemedi.");
+    } finally {
+      setSavingProfile(false);
+    }
+  }
 
   // ── Load slots for selected day ────────────────────────────────────────────
   const loadSlots = useCallback(async (dow: number) => {
@@ -179,6 +234,93 @@ export default function SettingsPage() {
       </header>
 
       <main className="px-4 pt-4 space-y-4">
+        {/* Workshop Profile (name + bot name) */}
+        {profile && (
+          <Card className="border-slate-200">
+            <CardHeader className="pb-3 pt-4">
+              <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                <Bot size={15} />
+                Atölye Profili
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pb-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Atölye Adı</Label>
+                <Input
+                  value={profileForm.name}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, name: e.target.value })
+                  }
+                  placeholder="Örn. Mehmet Usta Oto"
+                  className="h-9 text-sm"
+                  maxLength={200}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">
+                  Bot Adı{" "}
+                  <span className="text-slate-400 font-normal">
+                    (boş bırakırsanız "Assistly" kullanılır)
+                  </span>
+                </Label>
+                <Input
+                  value={profileForm.botName}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, botName: e.target.value })
+                  }
+                  placeholder="Assistly"
+                  className="h-9 text-sm"
+                  maxLength={100}
+                />
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Bot, müşterilere kendini bu isimle tanıtacak. Örnek: "Ben{" "}
+                  {profileForm.botName.trim() || "Assistly"}, ..."
+                </p>
+              </div>
+              {profileError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+                  {profileError}
+                </p>
+              )}
+              <Button
+                size="sm"
+                className="gap-1.5 h-9 text-xs w-full"
+                onClick={handleSaveProfile}
+                disabled={savingProfile || !profileForm.name.trim()}
+              >
+                {savingProfile ? (
+                  <Loader2 size={13} className="animate-spin" />
+                ) : (
+                  <Save size={13} />
+                )}
+                {profileSaveSuccess ? "Kaydedildi ✓" : "Profili Kaydet"}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Link to WhatsApp Business Profile sub-page */}
+        <Link href="/settings/whatsapp-profile" className="block">
+          <Card className="border-slate-200 hover:border-emerald-300 transition-colors cursor-pointer">
+            <CardContent className="py-3.5 px-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                  <MessageCircle size={16} className="text-emerald-700" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900">
+                    WhatsApp Profili
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Görünen ad, fotoğraf, açıklama, adres
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-slate-400 shrink-0" />
+            </CardContent>
+          </Card>
+        </Link>
+
         {/* AI Auto-reply toggle (workshop-wide) */}
         <AIToggle size="full" />
 

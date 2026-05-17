@@ -11,7 +11,6 @@ import { subscribeToPush, sendSubscriptionToBackend } from "@/lib/push";
 import type { Appointment, AppointmentStatus } from "@/lib/types";
 import BottomNav from "@/components/BottomNav";
 import NotificationBell from "@/components/NotificationBell";
-import AIToggle from "@/components/AIToggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -400,7 +399,6 @@ export default function DashboardPage() {
             <p className="text-xs text-slate-500 capitalize">{today}</p>
           </div>
           <div className="flex items-center gap-1.5">
-            <AIToggle size="compact" />
             {notifPermission === "granted" ? (
               <NotificationBell />
             ) : notifPermission === "denied" ? (

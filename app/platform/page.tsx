@@ -32,6 +32,7 @@ const emptyForm = (): WorkshopUpsertPayload => ({
   whatsAppPhoneNumber: "",
   whatsAppToken: "",
   whatsAppAppSecret: "",
+  whatsAppAppId: "",
   twilioAccountSid: "",
   twilioAuthToken: "",
   geminiApiKey: "",
@@ -147,6 +148,7 @@ export default function PlatformPage() {
       whatsAppPhoneNumber: w.whatsAppPhoneNumber ?? "",
       whatsAppToken: "",
       whatsAppAppSecret: "",
+      whatsAppAppId: "",
       twilioAccountSid: "",
       twilioAuthToken: "",
       geminiApiKey: "",
@@ -165,6 +167,7 @@ export default function PlatformPage() {
         ...form,
         whatsAppToken: form.whatsAppToken || undefined,
         whatsAppAppSecret: form.whatsAppAppSecret || undefined,
+        whatsAppAppId: form.whatsAppAppId || undefined,
         twilioAccountSid: form.twilioAccountSid || undefined,
         twilioAuthToken: form.twilioAuthToken || undefined,
         geminiApiKey: form.geminiApiKey || undefined,
@@ -442,97 +445,115 @@ export default function PlatformPage() {
                   </div>
                 </div>
 
-                {/* Meta credentials */}
-                {isMeta && (
-                  <div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                {/* Meta credentials — ALL fields ALWAYS visible regardless of provider.
+                    The WhatsApp number is Meta-registered for all workshops, so Meta
+                    APIs (webhook validation + profile management + media upload) are
+                    used by every provider. Twilio workshops should obtain a Meta
+                    Access Token from Twilio Console and paste it here. */}
+                <div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+                  <div>
                     <p className="text-xs font-medium text-slate-600">
                       Meta Credentials
                     </p>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Phone Number ID</Label>
-                      <Input
-                        value={form.whatsAppPhoneNumberId}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            whatsAppPhoneNumberId: e.target.value,
-                          })
-                        }
-                        placeholder="123456789"
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">
-                        Phone Number (E.164, no +)
-                      </Label>
-                      <Input
-                        value={form.whatsAppPhoneNumber}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            whatsAppPhoneNumber: e.target.value,
-                          })
-                        }
-                        placeholder="905321234567"
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">
-                        Access Token {editTarget && "(leave blank to keep existing)"}
-                      </Label>
-                      <Input
-                        value={form.whatsAppToken}
-                        onChange={(e) =>
-                          setForm({ ...form, whatsAppToken: e.target.value })
-                        }
-                        placeholder={editTarget ? "••••••••" : "EAAxxxxxxxx…"}
-                        className="h-9 text-sm"
-                        type="password"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">
-                        App Secret{" "}
-                        {editTarget
-                          ? "(leave blank to keep existing)"
-                          : "— Meta App Dashboard → Settings → Basic"}
-                      </Label>
-                      <Input
-                        value={form.whatsAppAppSecret}
-                        onChange={(e) =>
-                          setForm({ ...form, whatsAppAppSecret: e.target.value })
-                        }
-                        placeholder={editTarget ? "••••••••" : "abc123…"}
-                        className="h-9 text-sm"
-                        type="password"
-                      />
-                    </div>
+                    <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
+                      Webhook doğrulama ve WhatsApp profili yönetimi için
+                      gereklidir — sağlayıcıdan bağımsız.
+                      {!isMeta && " Twilio kullanıyorsanız Access Token'ı Twilio Console'dan alabilirsiniz."}
+                    </p>
                   </div>
-                )}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      Phone Number (E.164, no +)
+                    </Label>
+                    <Input
+                      value={form.whatsAppPhoneNumber}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          whatsAppPhoneNumber: e.target.value,
+                        })
+                      }
+                      placeholder={isMeta ? "905321234567" : "14155238886"}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Phone Number ID</Label>
+                    <Input
+                      value={form.whatsAppPhoneNumberId}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          whatsAppPhoneNumberId: e.target.value,
+                        })
+                      }
+                      placeholder="123456789"
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      App Secret{" "}
+                      {editTarget
+                        ? "(leave blank to keep existing)"
+                        : "— Meta App Dashboard → Settings → Basic"}
+                    </Label>
+                    <Input
+                      value={form.whatsAppAppSecret}
+                      onChange={(e) =>
+                        setForm({ ...form, whatsAppAppSecret: e.target.value })
+                      }
+                      placeholder={editTarget ? "••••••••" : "abc123…"}
+                      className="h-9 text-sm"
+                      type="password"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      Access Token{" "}
+                      {editTarget && "(leave blank to keep existing)"}
+                    </Label>
+                    <Input
+                      value={form.whatsAppToken}
+                      onChange={(e) =>
+                        setForm({ ...form, whatsAppToken: e.target.value })
+                      }
+                      placeholder={editTarget ? "••••••••" : "EAAxxxxxxxx…"}
+                      className="h-9 text-sm"
+                      type="password"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      App ID{" "}
+                      <span className="text-slate-400 font-normal">
+                        (numeric — required for profile picture upload)
+                      </span>
+                    </Label>
+                    <Input
+                      value={form.whatsAppAppId}
+                      onChange={(e) =>
+                        setForm({ ...form, whatsAppAppId: e.target.value })
+                      }
+                      placeholder="1234567890123456"
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
 
-                {/* Twilio credentials */}
+                {/* Twilio credentials — ONLY for Twilio-provider workshops.
+                    Used for OUTBOUND message sending only. Receiving and profile
+                    management still go through Meta credentials above. */}
                 {!isMeta && (
                   <div className="space-y-3 rounded-lg border border-indigo-100 bg-indigo-50 p-3">
-                    <p className="text-xs font-medium text-indigo-700">
-                      Twilio Credentials
-                    </p>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">
-                        Phone Number (E.164, no +)
-                      </Label>
-                      <Input
-                        value={form.whatsAppPhoneNumber}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            whatsAppPhoneNumber: e.target.value,
-                          })
-                        }
-                        placeholder="14155238886"
-                        className="h-9 text-sm"
-                      />
+                    <div>
+                      <p className="text-xs font-medium text-indigo-700">
+                        Twilio Credentials (Outbound Sending)
+                      </p>
+                      <p className="text-[10px] text-indigo-600/70 mt-0.5 leading-relaxed">
+                        Sadece giden mesaj göndermek için. Gelen mesajlar ve profil
+                        yönetimi yukarıdaki Meta kimlik bilgilerini kullanır.
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">

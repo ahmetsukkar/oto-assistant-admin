@@ -56,6 +56,7 @@ export interface WorkshopUpsertPayload {
   whatsAppPhoneNumber?: string;
   whatsAppToken?: string;
   whatsAppAppSecret?: string;
+  whatsAppAppId?: string;
   twilioAccountSid?: string;
   twilioAuthToken?: string;
   geminiApiKey?: string;
