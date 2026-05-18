@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { BusinessContextProvider } from "@/lib/business-context";
 import AIPausedBanner from "@/components/AIPausedBanner";
+import TrialBanner from "@/components/TrialBanner";
 
 export default function ProtectedLayout({
   children,
@@ -22,6 +23,7 @@ export default function ProtectedLayout({
   return (
     <BusinessContextProvider>
       <AIPausedBanner />
+      <TrialBanner />
       {children}
     </BusinessContextProvider>
   );

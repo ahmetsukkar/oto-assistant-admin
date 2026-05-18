@@ -18,6 +18,11 @@ export interface WorkshopInfo {
   businessType: BusinessType;
   aiEnabled: boolean;
   businessTypeConfig: BusinessTypeConfig;
+  subscriptionExpiresAt?: string | null;
+  hasExpiry?: boolean;
+  isExpired?: boolean;
+  daysLeft?: number | null;
+  isTrial?: boolean;
 }
 
 // ─── Appointments ─────────────────────────────────────────────────────────────

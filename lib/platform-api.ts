@@ -36,6 +36,7 @@ export type BusinessType = "CarWorkshop" | "Barber" | "Clinic" | "Restaurant";
 export interface WorkshopListItem {
   id: string;
   name: string;
+  botName: string | null;
   businessType: BusinessType;
   whatsAppProvider: WhatsAppProvider;
   whatsAppPhoneNumberId: string | null;
@@ -45,11 +46,15 @@ export interface WorkshopListItem {
   hasGeminiKey: boolean;
   aiEnabled: boolean;
   isActive: boolean;
+  isTrial: boolean;
   createdAt: string;
+  subscriptionExpiresAt: string | null;
+  isExpired: boolean;
 }
 
 export interface WorkshopUpsertPayload {
   name: string;
+  botName?: string;
   businessType?: BusinessType;
   whatsAppProvider?: WhatsAppProvider;
   whatsAppPhoneNumberId?: string;
@@ -62,15 +67,21 @@ export interface WorkshopUpsertPayload {
   geminiApiKey?: string;
   customPrompt?: string;
   aiEnabled?: boolean;
+  apiKey?: string;
+  subscriptionDays?: number;
+  isTrial?: boolean;
 }
 
 export interface CreatedWorkshop {
   id: string;
   apiKey: string;
   name: string;
+  botName: string | null;
   businessType: string;
   whatsAppProvider: string;
   isActive: boolean;
+  isTrial: boolean;
+  subscriptionExpiresAt: string | null;
 }
 
 // ─── API calls ────────────────────────────────────────────────────────────────
@@ -103,5 +114,15 @@ export function deactivateWorkshop(
 ): Promise<{ id: string; isActive: boolean }> {
   return platformFetch(`/api/platform/workshops/${id}`, {
     method: "DELETE",
+  });
+}
+
+export function extendSubscription(
+  id: string,
+  days: number,
+): Promise<{ id: string; subscriptionExpiresAt: string }> {
+  return platformFetch(`/api/platform/workshops/${id}/extend-subscription`, {
+    method: "PATCH",
+    body: JSON.stringify({ days }),
   });
 }

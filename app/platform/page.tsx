@@ -6,16 +6,54 @@ import {
   createWorkshop,
   updateWorkshop,
   deactivateWorkshop,
+  extendSubscription,
   type WorkshopListItem,
   type WorkshopUpsertPayload,
   type BusinessType,
   type WhatsAppProvider,
+  type CreatedWorkshop,
 } from "@/lib/platform-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Plus, Pencil, PowerOff, X, Copy, Check } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Pencil,
+  PowerOff,
+  X,
+  Copy,
+  Check,
+  Hourglass,
+  Sparkles,
+} from "lucide-react";
+
+const ADMIN_URL = "assistly.ahmetbuilds.com";
+
+function generateApiKey(length = 12): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const buf = new Uint32Array(length);
+  crypto.getRandomValues(buf);
+  let out = "";
+  for (let i = 0; i < length; i++) out += chars[buf[i] % chars.length];
+  return out;
+}
+
+function trialDaysLeft(expiresAt: string | null): number | null {
+  if (!expiresAt) return null;
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diff / 86_400_000));
+}
+
+function formatTrialDate(iso: string | null): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("tr-TR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
 
 const BUSINESS_TYPES: BusinessType[] = [
   "CarWorkshop",
@@ -26,6 +64,7 @@ const BUSINESS_TYPES: BusinessType[] = [
 
 const emptyForm = (): WorkshopUpsertPayload => ({
   name: "",
+  botName: "",
   businessType: "CarWorkshop",
   whatsAppProvider: "Meta",
   whatsAppPhoneNumberId: "",
@@ -38,6 +77,9 @@ const emptyForm = (): WorkshopUpsertPayload => ({
   geminiApiKey: "",
   customPrompt: "",
   aiEnabled: true,
+  apiKey: "",
+  subscriptionDays: 3,
+  isTrial: true,
 });
 
 // ── Platform login guard ────────────────────────────────────────────────────
@@ -112,7 +154,8 @@ export default function PlatformPage() {
   const [editTarget, setEditTarget] = useState<WorkshopListItem | null>(null);
   const [form, setForm] = useState<WorkshopUpsertPayload>(emptyForm());
   const [saving, setSaving] = useState(false);
-  const [lastCreatedKey, setLastCreatedKey] = useState<string | null>(null);
+  const [lastCreated, setLastCreated] = useState<CreatedWorkshop | null>(null);
+  const [extendingId, setExtendingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const loadWorkshops = useCallback(async () => {
@@ -133,15 +176,16 @@ export default function PlatformPage() {
   function openCreate() {
     setEditTarget(null);
     setForm(emptyForm());
-    setLastCreatedKey(null);
+    setLastCreated(null);
     setFormOpen(true);
   }
 
   function openEdit(w: WorkshopListItem) {
     setEditTarget(w);
-    setLastCreatedKey(null);
+    setLastCreated(null);
     setForm({
       name: w.name,
+      botName: w.botName ?? "",
       businessType: w.businessType,
       whatsAppProvider: w.whatsAppProvider,
       whatsAppPhoneNumberId: w.whatsAppPhoneNumberId ?? "",
@@ -158,6 +202,19 @@ export default function PlatformPage() {
     setFormOpen(true);
   }
 
+  async function handleExtendSubscription(w: WorkshopListItem) {
+    setExtendingId(w.id);
+    setError("");
+    try {
+      await extendSubscription(w.id, 3);
+      await loadWorkshops();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Subscription extension failed");
+    } finally {
+      setExtendingId(null);
+    }
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -165,6 +222,7 @@ export default function PlatformPage() {
     try {
       const payload: WorkshopUpsertPayload = {
         ...form,
+        botName: form.botName?.trim() || undefined,
         whatsAppToken: form.whatsAppToken || undefined,
         whatsAppAppSecret: form.whatsAppAppSecret || undefined,
         whatsAppAppId: form.whatsAppAppId || undefined,
@@ -174,17 +232,26 @@ export default function PlatformPage() {
         customPrompt: form.customPrompt || undefined,
         whatsAppPhoneNumberId: form.whatsAppPhoneNumberId || undefined,
         whatsAppPhoneNumber: form.whatsAppPhoneNumber || undefined,
+        // subscriptionDays, apiKey, isTrial are create-only
+        apiKey: editTarget ? undefined : form.apiKey?.trim() || undefined,
+        subscriptionDays: editTarget
+          ? undefined
+          : form.subscriptionDays && form.subscriptionDays > 0
+            ? form.subscriptionDays
+            : undefined,
+        isTrial: editTarget ? undefined : form.isTrial,
       };
 
       if (editTarget) {
         await updateWorkshop(editTarget.id, payload);
+        setFormOpen(false);
       } else {
         const created = await createWorkshop(payload);
-        setLastCreatedKey(created.apiKey);
+        setLastCreated(created);
+        // Keep the dialog open so the owner can copy the credentials.
       }
 
       await loadWorkshops();
-      if (!editTarget) setFormOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -313,23 +380,65 @@ export default function PlatformPage() {
                           AI OFF
                         </span>
                       )}
+                      {/* Subscription status badge */}
+                      {w.subscriptionExpiresAt && !w.isExpired && (
+                        <span className="text-[10px] bg-emerald-50 text-emerald-700 rounded px-1.5 py-0.5">
+                          {w.isTrial ? "Deneme Aktif" : "Abonelik Aktif"} · {trialDaysLeft(w.subscriptionExpiresAt)}g
+                        </span>
+                      )}
+                      {w.subscriptionExpiresAt && w.isExpired && (
+                        <span className="text-[10px] bg-rose-50 text-rose-700 rounded px-1.5 py-0.5">
+                          Süresi Doldu
+                        </span>
+                      )}
+                      {!w.subscriptionExpiresAt && (
+                        <span className="text-[10px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">
+                          Sınırsız
+                        </span>
+                      )}
+                      {w.isTrial && !w.isExpired && (
+                        <span className="text-[10px] bg-violet-50 text-violet-600 rounded px-1.5 py-0.5">
+                          Demo
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 text-[11px] text-slate-400 flex flex-wrap gap-x-3 gap-y-0.5">
                       {w.whatsAppPhoneNumber && <span>📱 {w.whatsAppPhoneNumber}</span>}
                       {w.hasToken && <span>✓ Token</span>}
                       {w.hasTwilioSid && <span>✓ Twilio</span>}
                       {w.hasGeminiKey && <span>✓ Gemini</span>}
+                      {w.subscriptionExpiresAt && (
+                        <span className="text-slate-400">
+                          ⏳ {formatTrialDate(w.subscriptionExpiresAt)}
+                        </span>
+                      )}
                       <span className="text-slate-300">
                         {new Date(w.createdAt).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {w.isActive && (
+                      <button
+                        type="button"
+                        onClick={() => handleExtendSubscription(w)}
+                        disabled={extendingId === w.id}
+                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                        title="Süreyi 3 gün uzat"
+                      >
+                        {extendingId === w.id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Hourglass size={12} />
+                        )}
+                        +3g
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => openEdit(w)}
                       className="p-1.5 rounded hover:bg-slate-100 text-slate-500"
-                      title="Edit"
+                      title="Düzenle"
                     >
                       <Pencil size={14} />
                     </button>
@@ -338,7 +447,7 @@ export default function PlatformPage() {
                         type="button"
                         onClick={() => handleDeactivate(w)}
                         className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-600"
-                        title="Deactivate"
+                        title="Pasifleştir"
                       >
                         <PowerOff size={14} />
                       </button>
@@ -366,30 +475,68 @@ export default function PlatformPage() {
               </CardTitle>
               <button
                 type="button"
-                onClick={() => setFormOpen(false)}
+                onClick={() => {
+                  setFormOpen(false);
+                  setLastCreated(null);
+                }}
                 className="text-slate-400 hover:text-slate-700"
               >
                 <X size={18} />
               </button>
             </CardHeader>
             <CardContent className="pb-6">
-              {/* Show new API key after creation */}
-              {lastCreatedKey && (
-                <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm">
-                  <p className="font-semibold text-emerald-800 mb-1">
-                    Workshop created! Save this API key — it won&apos;t be shown again:
+              {/* Success card shown after creating a trial workshop */}
+              {lastCreated && (
+                <div className="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm space-y-2">
+                  <p className="font-semibold text-emerald-800">
+                    {lastCreated.name} oluşturuldu! Bu bilgileri kaydedin:
                   </p>
-                  <div className="flex items-center gap-1 font-mono text-xs text-emerald-700 break-all">
-                    {lastCreatedKey}
-                    <CopyButton value={lastCreatedKey} />
+                  <div className="space-y-1.5 text-xs">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-emerald-600/80 w-24 shrink-0">
+                        API Anahtarı:
+                      </span>
+                      <span className="font-mono text-emerald-800 break-all">
+                        {lastCreated.apiKey}
+                      </span>
+                      <CopyButton value={lastCreated.apiKey} />
+                    </div>
+                    {lastCreated.subscriptionExpiresAt && (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-emerald-600/80 w-24 shrink-0">
+                          {lastCreated.isTrial ? "Deneme sonu:" : "Abonelik sonu:"}
+                        </span>
+                        <span className="text-emerald-800">
+                          {formatTrialDate(lastCreated.subscriptionExpiresAt)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-emerald-600/80 w-24 shrink-0">
+                        Admin paneli:
+                      </span>
+                      <span className="text-emerald-800">{ADMIN_URL}</span>
+                      <CopyButton value={ADMIN_URL} />
+                    </div>
                   </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setLastCreated(null);
+                      setFormOpen(false);
+                    }}
+                    className="mt-2 w-full"
+                  >
+                    Tamam
+                  </Button>
                 </div>
               )}
 
               <form onSubmit={handleSave} className="space-y-4">
                 {/* Name */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Workshop Name *</Label>
+                  <Label className="text-xs">İşletme Adı *</Label>
                   <Input
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -398,6 +545,106 @@ export default function PlatformPage() {
                     required
                   />
                 </div>
+
+                {/* Bot name */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">
+                    Bot Adı{" "}
+                    <span className="text-slate-400 font-normal">(opsiyonel)</span>
+                  </Label>
+                  <Input
+                    value={form.botName ?? ""}
+                    onChange={(e) =>
+                      setForm({ ...form, botName: e.target.value })
+                    }
+                    placeholder="Assistly"
+                    className="h-9 text-sm"
+                  />
+                </div>
+
+                {/* API key + generator + trial days — create-only */}
+                {!editTarget && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">
+                        API Anahtarı{" "}
+                        <span className="text-slate-400 font-normal">
+                          (boş bırakılırsa otomatik üretilir)
+                        </span>
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={form.apiKey ?? ""}
+                          onChange={(e) =>
+                            setForm({ ...form, apiKey: e.target.value })
+                          }
+                          placeholder="A1b2C3d4E5f6"
+                          className="h-9 text-sm font-mono"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setForm({ ...form, apiKey: generateApiKey(12) })
+                          }
+                          className="h-9 shrink-0 text-xs"
+                        >
+                          <Sparkles size={13} className="mr-1" />
+                          Oluştur
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">
+                        Abonelik Süresi (gün){" "}
+                        <span className="text-slate-400 font-normal">
+                          0 = süresiz
+                        </span>
+                      </Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={1825}
+                        value={form.subscriptionDays ?? 0}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            subscriptionDays: Number(e.target.value) || 0,
+                          })
+                        }
+                        className="h-9 text-sm"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={form.isTrial ?? true}
+                        onClick={() =>
+                          setForm({ ...form, isTrial: !(form.isTrial ?? true) })
+                        }
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                          (form.isTrial ?? true) ? "bg-violet-500" : "bg-slate-300"
+                        }`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${
+                            (form.isTrial ?? true) ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                      <Label className="text-xs">
+                        Demo hesabı{" "}
+                        <span className="text-slate-400 font-normal">
+                          (yapılandırma kısıtlı)
+                        </span>
+                      </Label>
+                    </div>
+                  </>
+                )}
 
                 {/* Business type */}
                 <div className="space-y-1.5">
@@ -660,12 +907,16 @@ export default function PlatformPage() {
                 <Button
                   type="submit"
                   className="w-full"
-                  disabled={saving || !form.name.trim()}
+                  disabled={saving || !form.name.trim() || !!lastCreated}
                 >
                   {saving ? (
                     <Loader2 size={14} className="animate-spin mr-2" />
                   ) : null}
-                  {editTarget ? "Save Changes" : "Create Workshop"}
+                  {editTarget
+                    ? "Değişiklikleri Kaydet"
+                    : form.isTrial
+                      ? "Deneme Hesabı Oluştur"
+                      : "İşletme Oluştur"}
                 </Button>
               </form>
             </CardContent>

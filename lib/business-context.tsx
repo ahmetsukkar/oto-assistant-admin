@@ -14,11 +14,28 @@ const defaultConfig: BusinessTypeConfig = {
   requiresPartySize: false,
 };
 
+function fromInfo(info: WorkshopInfo) {
+  return {
+    workshopName: info.workshopName,
+    businessType: info.businessType,
+    config: info.businessTypeConfig,
+    aiEnabled: info.aiEnabled ?? true,
+    hasExpiry: info.hasExpiry ?? false,
+    isExpired: info.isExpired ?? false,
+    daysLeft: info.daysLeft ?? null,
+    isTrial: info.isTrial ?? false,
+  };
+}
+
 interface BusinessContextValue {
   workshopName: string;
   businessType: string;
   config: BusinessTypeConfig;
   aiEnabled: boolean;
+  hasExpiry: boolean;
+  isExpired: boolean;
+  daysLeft: number | null;
+  isTrial: boolean;
   /** Toggles AI on/off on the backend and updates local state. */
   setAIEnabled: (enabled: boolean) => Promise<void>;
   /** Re-fetches workshop info from the API (use after editing name/profile). */
@@ -30,6 +47,10 @@ const BusinessContext = createContext<BusinessContextValue>({
   businessType: "CarWorkshop",
   config: defaultConfig,
   aiEnabled: true,
+  hasExpiry: false,
+  isExpired: false,
+  daysLeft: null,
+  isTrial: false,
   setAIEnabled: async () => {},
   refreshWorkshopInfo: async () => {},
 });
@@ -46,6 +67,10 @@ export function BusinessContextProvider({ children }: { children: ReactNode }) {
     businessType: "CarWorkshop",
     config: defaultConfig,
     aiEnabled: true,
+    hasExpiry: false,
+    isExpired: false,
+    daysLeft: null,
+    isTrial: false,
   });
 
   const setAIEnabled = useCallback(async (enabled: boolean) => {
@@ -70,26 +95,18 @@ export function BusinessContextProvider({ children }: { children: ReactNode }) {
   const refreshWorkshopInfo = useCallback(async () => {
     const info = await getMe();
     sessionStorage.setItem("workshop_info", JSON.stringify(info));
-    setValue({
-      workshopName: info.workshopName,
-      businessType: info.businessType,
-      config: info.businessTypeConfig,
-      aiEnabled: info.aiEnabled ?? true,
-    });
+    setValue(fromInfo(info));
   }, []);
 
   useEffect(() => {
+    // Trial fields can change between requests (countdown, expiry, extension),
+    // so always fetch fresh on mount. Use cached info only to avoid a flash
+    // of empty state while the fetch is in flight.
     const stored = sessionStorage.getItem("workshop_info");
     if (stored) {
       try {
         const info: WorkshopInfo = JSON.parse(stored);
-        setValue({
-          workshopName: info.workshopName,
-          businessType: info.businessType,
-          config: info.businessTypeConfig,
-          aiEnabled: info.aiEnabled ?? true,
-        });
-        return;
+        setValue(fromInfo(info));
       } catch {
         // ignore parse errors; fall through to fetch
       }
@@ -98,15 +115,10 @@ export function BusinessContextProvider({ children }: { children: ReactNode }) {
     getMe()
       .then((info) => {
         sessionStorage.setItem("workshop_info", JSON.stringify(info));
-        setValue({
-          workshopName: info.workshopName,
-          businessType: info.businessType,
-          config: info.businessTypeConfig,
-          aiEnabled: info.aiEnabled ?? true,
-        });
+        setValue(fromInfo(info));
       })
       .catch(() => {
-        // keep defaults if fetch fails
+        // keep cached/defaults if fetch fails
       });
   }, []);
 

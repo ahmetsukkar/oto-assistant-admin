@@ -470,7 +470,7 @@ function CustomerSheet({
       <SheetContent
         side="bottom"
         showCloseButton={tab !== "chat"}
-        className="px-0 pb-0 h-[100dvh] max-h-[100dvh] flex flex-col overflow-hidden rounded-none"
+        className="px-0 pb-0 data-[side=bottom]:h-[100dvh] data-[side=bottom]:max-h-[100dvh] flex flex-col overflow-hidden rounded-none"
       >
         {/* ── Header (WhatsApp-style on chat tab) ── */}
         {tab === "chat" ? (
